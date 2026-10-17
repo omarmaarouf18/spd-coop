@@ -21,13 +21,16 @@
 
 // Package store is the server's persistent state: a pure-Go SQLite database
 // (modernc.org/sqlite, so the binary stays static for distroless).
-// SRV-00 only creates the schema bookkeeping (a `meta` table holding the
-// schema version); game state tables come with later SRV tasks.
+// Schema v1 (SRV-00): the `meta` table holding the schema version.
+// Schema v2 (SRV-01): players (resume-token hashes), runs and run_players,
+// so a running run survives a server restart. Lobby rooms are memory-only.
 package store
 
 import (
 	"context"
+	"crypto/subtle"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -37,7 +40,7 @@ import (
 )
 
 // SchemaVersion is the schema this binary migrates the database to.
-const SchemaVersion = 1
+const SchemaVersion = 2
 
 // Store wraps the SQLite database.
 type Store struct {
@@ -93,7 +96,35 @@ func (s *Store) migrate(ctx context.Context) error {
 		return fmt.Errorf("database schema version %d is newer than this server (%d)", current, SchemaVersion)
 	}
 
-	// Future migrations go here, one step per version: if current < 2 { ... }.
+	// One step per version; each runs inside this transaction.
+	if current < 2 {
+		for _, stmt := range []string{
+			`CREATE TABLE players (
+				player_id  TEXT PRIMARY KEY,
+				token_hash BLOB NOT NULL UNIQUE,
+				created_at INTEGER NOT NULL,
+				last_seen  INTEGER NOT NULL)`,
+			`CREATE TABLE runs (
+				run_id     TEXT PRIMARY KEY,
+				code       TEXT NOT NULL,
+				seed       INTEGER NOT NULL,
+				role_seed  INTEGER NOT NULL,
+				created_at INTEGER NOT NULL,
+				phase      TEXT NOT NULL)`,
+			`CREATE TABLE run_players (
+				run_id     TEXT NOT NULL REFERENCES runs(run_id),
+				player_id  TEXT NOT NULL REFERENCES players(player_id),
+				slot       INTEGER NOT NULL,
+				hero_class TEXT NOT NULL,
+				platform   TEXT NOT NULL,
+				PRIMARY KEY (run_id, slot))`,
+			`CREATE INDEX run_players_by_player ON run_players(player_id)`,
+		} {
+			if _, err := tx.ExecContext(ctx, stmt); err != nil {
+				return fmt.Errorf("migrate to v2: %w", err)
+			}
+		}
+	}
 
 	if _, err := tx.ExecContext(ctx,
 		`INSERT INTO meta (key, value) VALUES ('schema_version', ?)
@@ -118,6 +149,119 @@ func (s *Store) SchemaVersion(ctx context.Context) (int, error) {
 // Ping checks that the database is reachable.
 func (s *Store) Ping(ctx context.Context) error {
 	return s.db.PingContext(ctx)
+}
+
+// ErrNotFound is returned when a looked-up row does not exist.
+var ErrNotFound = errors.New("not found")
+
+// CreatePlayer records a new player with the SHA-256 hash of its resume
+// token (the token itself is never stored).
+func (s *Store) CreatePlayer(ctx context.Context, playerID string, tokenHash []byte, now int64) error {
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO players (player_id, token_hash, created_at, last_seen) VALUES (?, ?, ?, ?)`,
+		playerID, tokenHash, now, now)
+	return err
+}
+
+// PlayerByTokenHash returns the player whose resume-token hash is tokenHash.
+// The stored hash is compared in constant time.
+func (s *Store) PlayerByTokenHash(ctx context.Context, tokenHash []byte) (string, error) {
+	var id string
+	var stored []byte
+	err := s.db.QueryRowContext(ctx,
+		`SELECT player_id, token_hash FROM players WHERE token_hash = ?`, tokenHash).Scan(&id, &stored)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	if err != nil {
+		return "", err
+	}
+	if subtle.ConstantTimeCompare(stored, tokenHash) != 1 {
+		return "", ErrNotFound
+	}
+	return id, nil
+}
+
+// TouchPlayer updates a player's last_seen.
+func (s *Store) TouchPlayer(ctx context.Context, playerID string, now int64) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE players SET last_seen = ? WHERE player_id = ?`, now, playerID)
+	return err
+}
+
+// Run phases stored in runs.phase.
+const RunRunning = "running"
+
+// RunPlayer is one row of run_players.
+type RunPlayer struct {
+	PlayerID  string
+	Slot      int
+	HeroClass string
+	Platform  string
+}
+
+// Run is a started run.
+type Run struct {
+	RunID     string
+	Code      string
+	Seed      int64
+	RoleSeed  int64
+	CreatedAt int64
+	Phase     string
+	Players   []RunPlayer // sorted by slot
+}
+
+// CreateRun stores a run and its players in one transaction.
+func (s *Store) CreateRun(ctx context.Context, r Run) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO runs (run_id, code, seed, role_seed, created_at, phase) VALUES (?, ?, ?, ?, ?, ?)`,
+		r.RunID, r.Code, r.Seed, r.RoleSeed, r.CreatedAt, r.Phase); err != nil {
+		return err
+	}
+	for _, p := range r.Players {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO run_players (run_id, player_id, slot, hero_class, platform) VALUES (?, ?, ?, ?, ?)`,
+			r.RunID, p.PlayerID, p.Slot, p.HeroClass, p.Platform); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// ActiveRunForPlayer returns the newest running run the player is in, or
+// ErrNotFound.
+func (s *Store) ActiveRunForPlayer(ctx context.Context, playerID string) (Run, error) {
+	var r Run
+	err := s.db.QueryRowContext(ctx,
+		`SELECT r.run_id, r.code, r.seed, r.role_seed, r.created_at, r.phase
+		   FROM runs r JOIN run_players rp ON rp.run_id = r.run_id
+		  WHERE rp.player_id = ? AND r.phase = ?
+		  ORDER BY r.created_at DESC, r.run_id DESC LIMIT 1`, playerID, RunRunning).
+		Scan(&r.RunID, &r.Code, &r.Seed, &r.RoleSeed, &r.CreatedAt, &r.Phase)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Run{}, ErrNotFound
+	}
+	if err != nil {
+		return Run{}, err
+	}
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT player_id, slot, hero_class, platform FROM run_players WHERE run_id = ? ORDER BY slot`, r.RunID)
+	if err != nil {
+		return Run{}, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var p RunPlayer
+		if err := rows.Scan(&p.PlayerID, &p.Slot, &p.HeroClass, &p.Platform); err != nil {
+			return Run{}, err
+		}
+		r.Players = append(r.Players, p)
+	}
+	return r, rows.Err()
 }
 
 // Close closes the database.

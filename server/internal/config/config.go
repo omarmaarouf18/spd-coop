@@ -44,10 +44,10 @@ type Config struct {
 	Port     int
 	DBPath   string
 	LogLevel slog.Level
-	// AllowedVersions lists the game versions accepted at the handshake
-	// (comma-separated ALLOWED_VERSIONS). Empty means no version gate yet;
-	// the handshake itself lands in SRV-01.
-	AllowedVersions []string
+	// AllowedVersions lists the gameVersionCodes (the client's
+	// appVersionCode) accepted at the handshake: comma-separated integers in
+	// ALLOWED_VERSIONS. Empty means no version gate (PROTOCOL.md §8).
+	AllowedVersions []int
 }
 
 // Load reads PORT, DB_PATH, LOG_LEVEL and ALLOWED_VERSIONS through getenv
@@ -83,11 +83,12 @@ func Load(getenv func(string) string) (Config, error) {
 	if v := strings.TrimSpace(getenv("ALLOWED_VERSIONS")); v != "" {
 		for _, part := range strings.Split(v, ",") {
 			part = strings.TrimSpace(part)
-			if part == "" {
-				errs = append(errs, fmt.Errorf("ALLOWED_VERSIONS has an empty entry: %q", v))
-				continue
+			code, err := strconv.Atoi(part)
+			if err != nil || code < 1 {
+				errs = append(errs, fmt.Errorf("ALLOWED_VERSIONS must be comma-separated gameVersionCodes (integers >= 1), got %q", v))
+				break
 			}
-			cfg.AllowedVersions = append(cfg.AllowedVersions, part)
+			cfg.AllowedVersions = append(cfg.AllowedVersions, code)
 		}
 	}
 

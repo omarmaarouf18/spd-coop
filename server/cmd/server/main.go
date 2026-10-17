@@ -41,12 +41,12 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/omarmaarouf18/spd-coop/server/internal/config"
 	"github.com/omarmaarouf18/spd-coop/server/internal/httpapi"
+	"github.com/omarmaarouf18/spd-coop/server/internal/lobby"
 	"github.com/omarmaarouf18/spd-coop/server/internal/store"
 )
 
@@ -68,7 +68,7 @@ func main() {
 
 	switch {
 	case *checkEnv:
-		fmt.Printf("configuration OK: port=%d db_path=%s log_level=%s allowed_versions=%q version=%s\n",
+		fmt.Printf("configuration OK: port=%d db_path=%s log_level=%s allowed_versions=%v version=%s\n",
 			cfg.Port, cfg.DBPath, cfg.LogLevel, cfg.AllowedVersions, version)
 	case *healthcheck:
 		if err := runHealthcheck(cfg.Port); err != nil {
@@ -110,13 +110,15 @@ func run(cfg config.Config) error {
 	}
 	defer st.Close()
 
+	hub := lobby.New(lobby.Options{
+		Store:           st,
+		Logger:          logger,
+		AllowedVersions: cfg.AllowedVersions,
+		Shutdown:        ctx,
+	})
 	srv := &http.Server{
-		Addr: ":" + strconv.Itoa(cfg.Port),
-		Handler: httpapi.New(httpapi.Options{
-			Version:  version,
-			Logger:   logger,
-			Shutdown: ctx,
-		}),
+		Addr:              ":" + strconv.Itoa(cfg.Port),
+		Handler:           httpapi.New(httpapi.Options{Version: version, WS: hub}),
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       120 * time.Second,
 		MaxHeaderBytes:    16 << 10,
@@ -129,7 +131,8 @@ func run(cfg config.Config) error {
 		"port", cfg.Port,
 		"db_path", cfg.DBPath,
 		"schema_version", store.SchemaVersion,
-		"allowed_versions", strings.Join(cfg.AllowedVersions, ","))
+		"epoch", hub.Epoch(),
+		"allowed_versions", fmt.Sprint(cfg.AllowedVersions))
 
 	select {
 	case err := <-errc:
