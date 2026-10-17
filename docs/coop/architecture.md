@@ -26,7 +26,10 @@ coop/
 ├── Coop.java            # facade: isCoopRun(), role(), hooks called from upstream files
 ├── CoopRun.java         # persisted run state (Bundlable): coop flag, roomCode, playerId, role history
 ├── net/
-│   ├── CoopClient.java  # websocket, outbound queue (until open), reconnect w/ backoff
+│   ├── CoopClient.java  # text frames: outbound queue (until open), reconnect w/ backoff, callbacks on MainThread (NET-01a)
+│   ├── CoopTransport.java / JavaWebSocketTransport.java  # one socket per attempt; Java-WebSocket 1.6.0 (NET-01a)
+│   ├── Backoff.java     # 1 s doubling to 30 s, jitter from its own java.util.Random (NET-01a)
+│   ├── MainThread.java  # Gdx.app.postRunnable in game; tests substitute it (NET-01a)
 │   ├── Protocol.java    # envelope + message types, version constants
 │   └── Dispatcher.java  # routes events to handlers on GL thread
 ├── ghost/               # GhostAlly (visual), GhostSprite, ally compass/status
@@ -170,7 +173,8 @@ Lessons carried over from the SaaS deploy pipeline (they're real incidents there
 
 ## 5. Reliability
 
-- **Outbound queue:** clients queue messages until the socket is open and resend un-acked ones after a reconnect.
+- **Outbound queue:** clients queue messages until the socket is open and resend un-acked ones after a reconnect. `CoopClient` (NET-01a) implements the first half: frames sent while not open are queued (max 256; `send()` returns false when full, never a silent drop) and flushed in order on open. Frames already handed to a socket that then dies can be lost; resending un-acked ones is the protocol layer's job (seq/ack, NET-01).
+- **Liveness:** websocket ping frames every 30 s (`setConnectionLostTimeout`) detect dead sockets; the JSON `PING`/`PONG` heartbeat (§3.2) is separate and belongs to the protocol layer.
 - **Resume:** a client reconnects with `resumeToken`; the server replays events after the client's last `ack`.
 - **Mobile background:** the app going to background means disconnect. The server marks the player paused and pauses mission timers (game-design §4.4).
 - **Desync guard:** clients send a cheap level digest (`hash(depth, map[])`) when entering a floor. A mismatch is logged and surfaced. In parallel-worlds mode it's informational, because maps only differ through terrain changes.

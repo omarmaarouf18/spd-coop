@@ -9,6 +9,11 @@ dependencies {
     api project(':SPD-classes')
     implementation project(':services')
 
+    // NET-01a: co-op websocket client (coop/net). slf4j-nop silences slf4j's
+    // "no provider" warning; the library logs nothing we need.
+    implementation 'org.java-websocket:Java-WebSocket:1.6.0'
+    runtimeOnly 'org.slf4j:slf4j-nop:2.0.13'
+
     // TST-01: determinism goldens harness. Test scope only, never shipped.
     testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
