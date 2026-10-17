@@ -1,0 +1,67 @@
+# .github/workflows/android-apk.yml — debug APK for friends (WF-02).
+#
+# Builds `:android:assembleDebug` on every push to main (and on demand) and
+# uploads it as a workflow artifact named <appName>-<appVersionName>-<sha>.apk,
+# with appName / appVersionName read from the root build.gradle. The JDK
+# version comes from tools/versions.env.
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  assemble-debug:
+    name: Assemble debug APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read tools/versions.env
+        id: versions
+        run: grep -E '^[A-Z0-9_]+=' tools/versions.env >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ steps.versions.outputs.JDK_VERSION }}
+          cache: gradle
+
+      - name: Assemble debug APK
+        run: ./gradlew --console=plain :android:assembleDebug
+
+      # appName may contain spaces ("Shattered Pixel Dungeon" until BRD-01);
+      # anything outside [A-Za-z0-9._-] becomes "-".
+      - name: Name the APK
+        id: apk
+        run: |
+          app_name="$(sed -nE "s/^[[:space:]]*appName[[:space:]]*=[[:space:]]*'([^']*)'.*/\1/p" build.gradle | head -n 1)"
+          app_version="$(sed -nE "s/^[[:space:]]*appVersionName[[:space:]]*=[[:space:]]*'([^']*)'.*/\1/p" build.gradle | head -n 1)"
+          if [ -z "$app_name" ] || [ -z "$app_version" ]; then
+            echo "could not read appName / appVersionName from build.gradle"
+            exit 1
+          fi
+          file="$(printf '%s-%s-%s' "$app_name" "$app_version" "${GITHUB_SHA::7}" | tr -c 'A-Za-z0-9._-' '-').apk"
+          mapfile -t apks < <(find android/build/outputs/apk/debug -name '*.apk')
+          if [ "${#apks[@]}" -ne 1 ]; then
+            echo "expected exactly one debug APK, found ${#apks[@]}: ${apks[*]}"
+            exit 1
+          fi
+          mkdir -p dist
+          cp "${apks[0]}" "dist/$file"
+          echo "file=$file" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.apk.outputs.file }}
+          path: dist/${{ steps.apk.outputs.file }}
+          if-no-files-found: error
+          retention-days: 30

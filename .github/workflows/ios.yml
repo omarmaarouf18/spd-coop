@@ -1,0 +1,48 @@
+# .github/workflows/ios.yml — experimental iOS build (WF-02). Manual only.
+#
+# Attempts the RoboVM (MobiVM) build on macOS, as far as it goes without any
+# Apple signing: compile the :ios module, then an unsigned createIPA.
+# docs/getting-started-ios.md has no step-by-step recipe, so this job is
+# allowed to fail (continue-on-error) until a REL task makes it work and adds
+# TestFlight signing (secrets are NOT used here).
+name: iOS (experimental)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  robovm-build:
+    name: RoboVM build (unsigned)
+    runs-on: macos-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read tools/versions.env
+        id: versions
+        run: grep -E '^[A-Z0-9_]+=' tools/versions.env >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ steps.versions.outputs.JDK_VERSION }}
+          cache: gradle
+
+      - name: Compile the iOS module
+        run: ./gradlew --console=plain :ios:build
+
+      - name: Unsigned IPA
+        run: ./gradlew --console=plain :ios:createIPA -Probovm.iosSkipSigning=true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-build-${{ github.sha }}
+          path: |
+            ios/build/robovm/**/*.ipa
+            ios/robovm-build/**/*.ipa
+          if-no-files-found: warn
+          retention-days: 7

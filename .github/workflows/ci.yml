@@ -1,0 +1,192 @@
+# .github/workflows/ci.yml — the full gate (WF-02). See docs/coop/WORKFLOW.md §7.
+#
+# Versions come only from tools/versions.env: the `gate-config` job reads it
+# into job outputs, runs the drift guard (scripts/check-versions.sh) and lints
+# the workflows and gate scripts. Every other job takes its versions from
+# those outputs, so nothing here hard-codes a JDK or Go version.
+# Jobs for parts that do not exist yet (server/, server/Dockerfile) are
+# skipped based on the `gate-config` outputs.
+name: CI
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  gate-config:
+    name: Versions, drift guard, workflow lint
+    runs-on: ubuntu-latest
+    outputs:
+      jdk: ${{ steps.versions.outputs.JDK_VERSION }}
+      go: ${{ steps.versions.outputs.GO_VERSION }}
+      has_server: ${{ steps.layout.outputs.has_server }}
+      has_dockerfile: ${{ steps.layout.outputs.has_dockerfile }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read tools/versions.env
+        id: versions
+        run: grep -E '^[A-Z0-9_]+=' tools/versions.env >> "$GITHUB_OUTPUT"
+
+      - name: Detect repo layout
+        id: layout
+        run: |
+          if [ -f server/go.mod ]; then echo "has_server=true"; else echo "has_server=false"; fi >> "$GITHUB_OUTPUT"
+          if [ -f server/Dockerfile ]; then echo "has_dockerfile=true"; else echo "has_dockerfile=false"; fi >> "$GITHUB_OUTPUT"
+
+      - name: Version drift guard
+        run: bash scripts/check-versions.sh
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ steps.versions.outputs.GO_VERSION }}
+          cache: false
+
+      - name: Install pinned actionlint
+        id: tools
+        run: bash scripts/install-tools.sh actionlint >> "$GITHUB_OUTPUT"
+
+      - name: actionlint
+        env:
+          ACTIONLINT_BIN: ${{ steps.tools.outputs.ACTIONLINT_BIN }}
+        run: |
+          shopt -s nullglob
+          files=(.github/workflows/*.yml)
+          [ ! -f deploy/deploy.yml ] || files+=(deploy/deploy.yml)
+          "$ACTIONLINT_BIN" "${files[@]}"
+
+      - name: shellcheck
+        run: shellcheck -x scripts/*.sh .githooks/pre-push
+
+  java-build-test:
+    name: Java build & test
+    needs: gate-config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ needs.gate-config.outputs.jdk }}
+          cache: gradle
+
+      # ubuntu-latest ships an Android SDK (ANDROID_HOME), so `test` also
+      # runs the android unit tests that the local gate skips without an SDK.
+      - name: Compile and test
+        run: ./gradlew --console=plain :core:compileJava :desktop:compileJava test
+
+  server:
+    name: Go server
+    needs: gate-config
+    if: needs.gate-config.outputs.has_server == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ needs.gate-config.outputs.go }}
+          cache-dependency-path: server/go.sum
+
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "gofmt found unformatted files:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test
+        run: go test ./...
+
+      - name: Install pinned govulncheck
+        id: tools
+        working-directory: .
+        run: bash scripts/install-tools.sh govulncheck >> "$GITHUB_OUTPUT"
+
+      - name: govulncheck
+        env:
+          GOVULNCHECK_BIN: ${{ steps.tools.outputs.GOVULNCHECK_BIN }}
+        run: '"$GOVULNCHECK_BIN" ./...'
+
+  docker:
+    name: Docker image & compose
+    needs: gate-config
+    if: needs.gate-config.outputs.has_dockerfile == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build server image
+        run: docker build --build-arg VERSION=ci -t spd-coop-server:ci server/
+
+      # Both compose files; the prod one the way build-and-publish.yml syncs
+      # it (IMAGE_TAG substituted, .env from .env.example).
+      - name: Validate compose files
+        run: bash scripts/compose-validate.sh
+
+  secret-scan:
+    name: Secret scan (gitleaks)
+    needs: gate-config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ needs.gate-config.outputs.go }}
+          cache: false
+
+      - name: Install pinned gitleaks
+        id: tools
+        run: bash scripts/install-tools.sh gitleaks >> "$GITHUB_OUTPUT"
+
+      # push: github.event.before..github.sha (an all-zero or unknown
+      # "before", e.g. a new branch, scans the head commit only).
+      # pull_request: base..head of the PR. Values are always redacted.
+      - name: Scan the pushed / PR range
+        env:
+          GITLEAKS_BIN: ${{ steps.tools.outputs.GITLEAKS_BIN }}
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            bash scripts/gitleaks-scan.sh range "$PR_BASE" "$PR_HEAD"
+          else
+            bash scripts/gitleaks-scan.sh range "$PUSH_BEFORE" "$GITHUB_SHA"
+          fi
+
+  docs:
+    name: Markdown SHA check
+    needs: gate-config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Strict (no full SHAs) for PRs from agent/* branches (GITHUB_HEAD_REF);
+      # otherwise every full SHA must be a real commit reachable from HEAD.
+      - name: md-sha-check
+        run: bash scripts/md-sha-check.sh
