@@ -219,8 +219,9 @@ setup_jdk() {
 	fi
 	[ -x "$JAVA_HOME/bin/javac" ] || block "JAVA_HOME=$JAVA_HOME has no bin/javac (a JRE, not a JDK)"
 	local major
-	# "javac 17.0.12" -> 17, "javac 27-ea" -> 27
-	major=$("$JAVA_HOME/bin/javac" -version 2>&1 | awk '{ print $2 }' | cut -d. -f1)
+	# "javac 17.0.12" -> 17, "javac 27-ea" -> 27. Only the "javac" line counts:
+	# a set JAVA_TOOL_OPTIONS makes the JVM print "Picked up ..." first.
+	major=$("$JAVA_HOME/bin/javac" -version 2>&1 | awk '$1 == "javac" { print $2; exit }' | cut -d. -f1)
 	major="${major%%[!0-9]*}"
 	[ "${major:-0}" -ge "$JDK_VERSION" ] 2>/dev/null ||
 		block "JDK at $JAVA_HOME is version '$major'; JDK >= $JDK_VERSION is required"
