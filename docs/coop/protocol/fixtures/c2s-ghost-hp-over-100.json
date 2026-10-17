@@ -1,0 +1,21 @@
+{
+  "name": "c2s-ghost-hp-over-100",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "out_of_range",
+  "field": "p.hpPct",
+  "message": {
+    "v": 1,
+    "t": "GHOST",
+    "seq": 1,
+    "depth": 1,
+    "branch": 0,
+    "p": {
+      "pos": 345,
+      "anim": "run",
+      "hpPct": 101,
+      "heroClass": "WARRIOR",
+      "tier": 0
+    }
+  }
+}

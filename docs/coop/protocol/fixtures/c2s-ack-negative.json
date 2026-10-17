@@ -1,0 +1,16 @@
+{
+  "name": "c2s-ack-negative",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "out_of_range",
+  "field": "ack",
+  "message": {
+    "v": 1,
+    "t": "PING",
+    "seq": 1,
+    "ack": -1,
+    "p": {
+      "t": 1
+    }
+  }
+}

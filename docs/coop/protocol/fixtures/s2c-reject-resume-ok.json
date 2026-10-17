@@ -1,0 +1,15 @@
+{
+  "name": "s2c-reject-resume-ok",
+  "direction": "s2c",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "REJECT",
+    "seq": 1,
+    "ack": 1,
+    "p": {
+      "code": "RESUME_FAILED",
+      "msg": "unknown resume token"
+    }
+  }
+}

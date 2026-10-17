@@ -1,0 +1,19 @@
+{
+  "name": "c2s-ghost-missing-depth",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "missing_field",
+  "field": "depth",
+  "message": {
+    "v": 1,
+    "t": "GHOST",
+    "seq": 1,
+    "p": {
+      "pos": 345,
+      "anim": "run",
+      "hpPct": 100,
+      "heroClass": "WARRIOR",
+      "tier": 0
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "c2s-ping-missing-t",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "missing_field",
+  "field": "p.t",
+  "message": {
+    "v": 1,
+    "t": "PING",
+    "seq": 1,
+    "p": {}
+  }
+}

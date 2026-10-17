@@ -1,0 +1,21 @@
+{
+  "name": "c2s-ghost-pos-negative",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "out_of_range",
+  "field": "p.pos",
+  "message": {
+    "v": 1,
+    "t": "GHOST",
+    "seq": 1,
+    "depth": 1,
+    "branch": 0,
+    "p": {
+      "pos": -1,
+      "anim": "run",
+      "hpPct": 100,
+      "heroClass": "WARRIOR",
+      "tier": 0
+    }
+  }
+}

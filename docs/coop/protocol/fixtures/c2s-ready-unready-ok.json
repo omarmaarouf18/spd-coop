@@ -1,0 +1,14 @@
+{
+  "name": "c2s-ready-unready-ok",
+  "direction": "c2s",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "READY",
+    "seq": 4,
+    "p": {
+      "heroClass": "CLERIC",
+      "ready": false
+    }
+  }
+}

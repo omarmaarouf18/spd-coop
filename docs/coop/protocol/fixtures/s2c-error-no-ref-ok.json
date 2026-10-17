@@ -1,0 +1,14 @@
+{
+  "name": "s2c-error-no-ref-ok",
+  "direction": "s2c",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "ERROR",
+    "seq": 40,
+    "p": {
+      "code": "SESSION_REPLACED",
+      "msg": "resumed on another connection"
+    }
+  }
+}

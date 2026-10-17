@@ -99,6 +99,9 @@ block() {
 # shellcheck source=tools/versions.env
 . tools/versions.env
 
+GATE_TMP=$(mktemp -d)
+trap 'rm -rf "$GATE_TMP"' EXIT
+
 # ---------------------------------------------------------------------------
 # Pinned tools (tools/versions.env via scripts/install-tools.sh): only the
 # ones this scope needs.
@@ -295,15 +298,22 @@ if [ "$SCOPE_DOCKER" = 1 ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# protocol: Java + Go contract tests on the shared fixtures. No-op until the
-# fixtures exist; PRO-01 must wire the real tests here (fail safe until then).
+# protocol: contract tests on the shared fixtures (docs/coop/protocol/
+# fixtures, PROTOCOL.md §11). Both sides must pass the same files.
 # ---------------------------------------------------------------------------
 if [ "$SCOPE_PROTOCOL" = 1 ]; then
 	stage_begin protocol
-	if [ -d docs/coop/protocol/fixtures ]; then
-		block "docs/coop/protocol/fixtures exists but the protocol contract stage is not wired yet (PRO-01 must add it to .githooks/pre-push)"
-	fi
-	echo "protocol: no fixtures yet, skipped"
+	[ -d docs/coop/protocol/fixtures ] || block "docs/coop/protocol/fixtures is missing"
+	export GOTOOLCHAIN="go${GO_VERSION}"
+	(cd server && go test -count=1 -v -run 'TestContract' ./internal/protocol/) >"$GATE_TMP/protocol-go.log" 2>&1 || {
+		cat "$GATE_TMP/protocol-go.log"
+		block "Go protocol contract tests failed"
+	}
+	grep -E 'contract fixtures exercised|^ok' "$GATE_TMP/protocol-go.log"
+	# NET-01 hook: add the Java contract test here (same fixtures), e.g.
+	#   ./gradlew --console=plain :core:test --tests '*ProtocolContract*' || block "Java protocol contract tests failed"
+	# and remove the next line.
+	echo "protocol: Java contract tests not wired yet (NET-01)"
 	stage_end
 fi
 

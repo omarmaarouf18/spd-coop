@@ -1,0 +1,17 @@
+{
+  "name": "s2c-mark-ok",
+  "direction": "s2c",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "MARK",
+    "seq": 8,
+    "depth": 30,
+    "branch": 9,
+    "from": "b2c3d4e5f6071829",
+    "p": {
+      "cell": 0,
+      "kind": "HERE"
+    }
+  }
+}

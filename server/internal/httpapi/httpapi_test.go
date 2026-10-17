@@ -22,26 +22,15 @@
 package httpapi
 
 import (
-	"context"
 	"encoding/json"
-	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
-	"time"
-
-	"github.com/coder/websocket"
 )
 
-func newServer(t *testing.T, shutdown context.Context) *httptest.Server {
+func newServer(t *testing.T, ws http.Handler) *httptest.Server {
 	t.Helper()
-	srv := httptest.NewServer(New(Options{
-		Version:  "test-1",
-		Logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
-		Shutdown: shutdown,
-	}))
+	srv := httptest.NewServer(New(Options{Version: "test-1", WS: ws}))
 	t.Cleanup(srv.Close)
 	return srv
 }
@@ -82,60 +71,18 @@ func TestUnknownPathIs404(t *testing.T) {
 	}
 }
 
-func dial(t *testing.T, srv *httptest.Server) (*websocket.Conn, context.Context) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	t.Cleanup(cancel)
-	conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(srv.URL, "http")+"/ws", nil)
+// /ws is routed to the websocket handler (the lobby hub; tested in
+// internal/lobby).
+func TestWSRoutedToHandler(t *testing.T) {
+	srv := newServer(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusTeapot)
+	}))
+	res, err := http.Get(srv.URL + "/ws")
 	if err != nil {
-		t.Fatalf("dial /ws: %v", err)
+		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = conn.CloseNow() })
-	return conn, ctx
-}
-
-func TestWebsocketAnswersNotImplemented(t *testing.T) {
-	srv := newServer(t, nil)
-	conn, ctx := dial(t, srv)
-
-	for _, msg := range []string{`{"t":"HELLO"}`, `anything`} {
-		if err := conn.Write(ctx, websocket.MessageText, []byte(msg)); err != nil {
-			t.Fatalf("write: %v", err)
-		}
-		typ, data, err := conn.Read(ctx)
-		if err != nil {
-			t.Fatalf("read: %v", err)
-		}
-		if typ != websocket.MessageText || string(data) != string(NotImplementedReply) {
-			t.Fatalf("reply = %v %q, want text %q", typ, data, NotImplementedReply)
-		}
-	}
-	if err := conn.Close(websocket.StatusNormalClosure, ""); err != nil {
-		t.Fatalf("close: %v", err)
-	}
-}
-
-func TestWebsocketRejectsOversizedMessage(t *testing.T) {
-	srv := newServer(t, nil)
-	conn, ctx := dial(t, srv)
-
-	if err := conn.Write(ctx, websocket.MessageText, make([]byte, MaxMessageBytes+1)); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-	_, _, err := conn.Read(ctx)
-	if got := websocket.CloseStatus(err); got != websocket.StatusMessageTooBig {
-		t.Fatalf("close status = %v (err %v), want StatusMessageTooBig", got, err)
-	}
-}
-
-func TestShutdownClosesWebsockets(t *testing.T) {
-	shutdown, stop := context.WithCancel(context.Background())
-	srv := newServer(t, shutdown)
-	conn, ctx := dial(t, srv)
-
-	stop()
-	_, _, err := conn.Read(ctx)
-	if got := websocket.CloseStatus(err); got != websocket.StatusGoingAway {
-		t.Fatalf("close status = %v (err %v), want StatusGoingAway", got, err)
+	res.Body.Close()
+	if res.StatusCode != http.StatusTeapot {
+		t.Fatalf("GET /ws = %d, want the handler's 418", res.StatusCode)
 	}
 }

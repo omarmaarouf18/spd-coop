@@ -1,0 +1,16 @@
+{
+  "name": "s2c-error-unknown-code",
+  "direction": "s2c",
+  "valid": false,
+  "reason": "bad_format",
+  "field": "p.code",
+  "message": {
+    "v": 1,
+    "t": "ERROR",
+    "seq": 1,
+    "p": {
+      "code": "TEAPOT",
+      "msg": "?"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "c2s-hello-missing-platform",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "missing_field",
+  "field": "p.platform",
+  "message": {
+    "v": 1,
+    "t": "HELLO",
+    "seq": 1,
+    "p": {
+      "protocol": 1,
+      "gameVersionCode": 922
+    }
+  }
+}

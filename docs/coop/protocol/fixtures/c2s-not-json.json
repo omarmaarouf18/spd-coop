@@ -1,0 +1,8 @@
+{
+  "name": "c2s-not-json",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "not_json",
+  "note": "message is the raw frame text",
+  "message": "{\"v\":1,\"t\":\"PING\","
+}

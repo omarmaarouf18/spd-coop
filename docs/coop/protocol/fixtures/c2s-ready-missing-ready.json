@@ -1,0 +1,15 @@
+{
+  "name": "c2s-ready-missing-ready",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "missing_field",
+  "field": "p.ready",
+  "message": {
+    "v": 1,
+    "t": "READY",
+    "seq": 1,
+    "p": {
+      "heroClass": "MAGE"
+    }
+  }
+}

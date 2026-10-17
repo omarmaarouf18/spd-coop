@@ -1,0 +1,15 @@
+{
+  "name": "c2s-room-create-extra-field",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "unknown_field",
+  "field": "p.code",
+  "message": {
+    "v": 1,
+    "t": "ROOM_CREATE",
+    "seq": 1,
+    "p": {
+      "code": "K7MZQ4"
+    }
+  }
+}

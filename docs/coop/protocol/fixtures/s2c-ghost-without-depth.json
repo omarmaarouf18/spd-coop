@@ -1,0 +1,20 @@
+{
+  "name": "s2c-ghost-without-depth",
+  "direction": "s2c",
+  "valid": false,
+  "reason": "missing_field",
+  "field": "depth",
+  "message": {
+    "v": 1,
+    "t": "GHOST",
+    "seq": 1,
+    "from": "a1b2c3d4e5f60718",
+    "p": {
+      "pos": 345,
+      "anim": "run",
+      "hpPct": 100,
+      "heroClass": "WARRIOR",
+      "tier": 0
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "s2c-reject-ok",
+  "direction": "s2c",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "REJECT",
+    "seq": 1,
+    "ack": 1,
+    "p": {
+      "code": "VERSION_MISMATCH",
+      "msg": "update the game",
+      "minGameVersionCode": 923
+    }
+  }
+}

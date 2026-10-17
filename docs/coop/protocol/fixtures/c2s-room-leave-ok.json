@@ -1,0 +1,11 @@
+{
+  "name": "c2s-room-leave-ok",
+  "direction": "c2s",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "ROOM_LEAVE",
+    "seq": 3,
+    "p": {}
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "name": "s2c-room-state-unknown-fields-ok",
+  "direction": "s2c",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "ROOM_STATE",
+    "seq": 2,
+    "p": {
+      "code": "K7MZQ4",
+      "phase": "lobby",
+      "newField": "added later in v1",
+      "players": [
+        {
+          "playerId": "a1b2c3d4e5f60718",
+          "slot": 0,
+          "ready": false,
+          "connected": true,
+          "platform": "desktop",
+          "extra": 1
+        }
+      ]
+    }
+  },
+  "ignoredFields": [
+    "p.newField",
+    "p.players.0.extra"
+  ],
+  "note": "s2c decoders ignore unknown fields (PROTOCOL.md §5.5)"
+}

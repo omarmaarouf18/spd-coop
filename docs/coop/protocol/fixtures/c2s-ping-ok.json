@@ -1,0 +1,14 @@
+{
+  "name": "c2s-ping-ok",
+  "direction": "c2s",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "PING",
+    "seq": 9,
+    "ack": 12,
+    "p": {
+      "t": 1792213718000
+    }
+  }
+}

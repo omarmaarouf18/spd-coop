@@ -1,0 +1,19 @@
+{
+  "name": "c2s-hello-resume-ok",
+  "direction": "c2s",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "HELLO",
+    "seq": 1,
+    "ack": 17,
+    "p": {
+      "protocol": 1,
+      "gameVersionCode": 922,
+      "platform": "desktop",
+      "resumeToken": "fake-fake-fake-fake-fake-fake-fake-fake-fak",
+      "epoch": "e1e2e3e4e5e6e7e8"
+    }
+  },
+  "note": "resume: token + epoch of the last WELCOME, ack = highest s2c seq received"
+}

@@ -1,0 +1,22 @@
+{
+  "name": "s2c-ghost-bad-from",
+  "direction": "s2c",
+  "valid": false,
+  "reason": "bad_format",
+  "field": "from",
+  "message": {
+    "v": 1,
+    "t": "GHOST",
+    "seq": 1,
+    "depth": 1,
+    "branch": 0,
+    "from": "not-a-player",
+    "p": {
+      "pos": 345,
+      "anim": "run",
+      "hpPct": 100,
+      "heroClass": "WARRIOR",
+      "tier": 0
+    }
+  }
+}

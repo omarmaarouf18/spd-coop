@@ -1,0 +1,15 @@
+{
+  "name": "c2s-v-string",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "wrong_type",
+  "field": "v",
+  "message": {
+    "v": "1",
+    "t": "PING",
+    "seq": 1,
+    "p": {
+      "t": 1
+    }
+  }
+}

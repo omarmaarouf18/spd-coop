@@ -47,7 +47,7 @@ func TestLoadValues(t *testing.T) {
 		"PORT":             "9000",
 		"DB_PATH":          "/tmp/x.db",
 		"LOG_LEVEL":        "debug",
-		"ALLOWED_VERSIONS": " 0.1.0-coop , 0.1.1-coop",
+		"ALLOWED_VERSIONS": " 922 , 923",
 	}))
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -55,8 +55,8 @@ func TestLoadValues(t *testing.T) {
 	if cfg.Port != 9000 || cfg.DBPath != "/tmp/x.db" || cfg.LogLevel != slog.LevelDebug {
 		t.Fatalf("unexpected config: %+v", cfg)
 	}
-	if !slices.Equal(cfg.AllowedVersions, []string{"0.1.0-coop", "0.1.1-coop"}) {
-		t.Fatalf("AllowedVersions = %q", cfg.AllowedVersions)
+	if !slices.Equal(cfg.AllowedVersions, []int{922, 923}) {
+		t.Fatalf("AllowedVersions = %v", cfg.AllowedVersions)
 	}
 }
 
@@ -65,7 +65,7 @@ func TestLoadRejectsBadValues(t *testing.T) {
 		"PORT":             "abc",
 		"DB_PATH":          "relative.db",
 		"LOG_LEVEL":        "loud",
-		"ALLOWED_VERSIONS": "0.1.0,,0.2.0",
+		"ALLOWED_VERSIONS": "922,,923",
 	}))
 	if err == nil {
 		t.Fatal("Load accepted invalid config")
@@ -73,6 +73,14 @@ func TestLoadRejectsBadValues(t *testing.T) {
 	for _, want := range []string{"PORT", "DB_PATH", "LOG_LEVEL", "ALLOWED_VERSIONS"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error does not mention %s: %v", want, err)
+		}
+	}
+}
+
+func TestLoadRejectsVersionNames(t *testing.T) {
+	for _, v := range []string{"0.1.0-coop", "922,abc", "0", "-5"} {
+		if _, err := Load(env(map[string]string{"ALLOWED_VERSIONS": v})); err == nil {
+			t.Errorf("ALLOWED_VERSIONS=%q accepted", v)
 		}
 	}
 }

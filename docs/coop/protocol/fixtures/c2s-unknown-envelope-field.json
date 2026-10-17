@@ -1,0 +1,16 @@
+{
+  "name": "c2s-unknown-envelope-field",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "unknown_field",
+  "field": "trace",
+  "message": {
+    "v": 1,
+    "t": "PING",
+    "seq": 1,
+    "p": {
+      "t": 1
+    },
+    "trace": "abc"
+  }
+}

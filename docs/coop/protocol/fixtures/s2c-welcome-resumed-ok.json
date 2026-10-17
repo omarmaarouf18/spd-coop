@@ -1,0 +1,61 @@
+{
+  "name": "s2c-welcome-resumed-ok",
+  "direction": "s2c",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "WELCOME",
+    "seq": 31,
+    "ack": 1,
+    "p": {
+      "playerId": "a1b2c3d4e5f60718",
+      "resumeToken": "fake-fake-fake-fake-fake-fake-fake-fake-fak",
+      "epoch": "e1e2e3e4e5e6e7e8",
+      "serverTime": 1792213718123,
+      "resumed": true,
+      "replayed": 2,
+      "complete": true,
+      "room": {
+        "code": "K7MZQ4",
+        "phase": "running",
+        "players": [
+          {
+            "playerId": "a1b2c3d4e5f60718",
+            "slot": 0,
+            "ready": true,
+            "connected": true,
+            "platform": "desktop",
+            "heroClass": "WARRIOR"
+          },
+          {
+            "playerId": "b2c3d4e5f6071829",
+            "slot": 1,
+            "ready": true,
+            "connected": true,
+            "platform": "android",
+            "heroClass": "MAGE"
+          }
+        ]
+      },
+      "run": {
+        "runId": "c0ffee0123456789",
+        "seed": 123456789,
+        "roleSeed": 987654321,
+        "players": [
+          {
+            "playerId": "a1b2c3d4e5f60718",
+            "slot": 0,
+            "heroClass": "WARRIOR",
+            "platform": "desktop"
+          },
+          {
+            "playerId": "b2c3d4e5f6071829",
+            "slot": 1,
+            "heroClass": "MAGE",
+            "platform": "android"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "name": "s2c-room-state-three-players",
+  "direction": "s2c",
+  "valid": false,
+  "reason": "out_of_range",
+  "field": "p.players",
+  "message": {
+    "v": 1,
+    "t": "ROOM_STATE",
+    "seq": 1,
+    "p": {
+      "code": "K7MZQ4",
+      "phase": "lobby",
+      "players": [
+        {
+          "playerId": "a1b2c3d4e5f60718",
+          "slot": 0,
+          "ready": false,
+          "connected": true,
+          "platform": "desktop"
+        },
+        {
+          "playerId": "b2c3d4e5f6071829",
+          "slot": 1,
+          "ready": false,
+          "connected": true,
+          "platform": "desktop"
+        },
+        {
+          "playerId": "0000000000000003",
+          "slot": 1,
+          "ready": false,
+          "connected": true,
+          "platform": "desktop"
+        }
+      ]
+    }
+  }
+}

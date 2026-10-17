@@ -1,0 +1,16 @@
+{
+  "name": "c2s-quick-depth-without-branch",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "missing_field",
+  "field": "branch",
+  "message": {
+    "v": 1,
+    "t": "QUICK",
+    "seq": 1,
+    "depth": 3,
+    "p": {
+      "phraseId": 1
+    }
+  }
+}

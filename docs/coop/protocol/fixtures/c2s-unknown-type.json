@@ -1,0 +1,13 @@
+{
+  "name": "c2s-unknown-type",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "unknown_type",
+  "field": "t",
+  "message": {
+    "v": 1,
+    "t": "DANCE",
+    "seq": 1,
+    "p": {}
+  }
+}

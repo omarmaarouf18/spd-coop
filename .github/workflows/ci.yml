@@ -126,6 +126,26 @@ jobs:
           GOVULNCHECK_BIN: ${{ steps.tools.outputs.GOVULNCHECK_BIN }}
         run: '"$GOVULNCHECK_BIN" ./...'
 
+  # Contract tests on the shared fixtures (docs/coop/protocol/fixtures,
+  # PROTOCOL.md §11). Go side now.
+  # NET-01: add the Java side here as a second step after setup-java, e.g.
+  #   ./gradlew --console=plain :core:test --tests '*ProtocolContract*'
+  protocol-contract:
+    name: Protocol contract (fixtures)
+    needs: gate-config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ needs.gate-config.outputs.go }}
+          cache-dependency-path: server/go.sum
+
+      - name: Go contract tests
+        working-directory: server
+        run: go test -count=1 -v -run 'TestContract' ./internal/protocol/
+
   docker:
     name: Docker image & compose
     needs: gate-config

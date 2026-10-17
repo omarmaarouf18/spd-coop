@@ -20,8 +20,8 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>
 
 // Command wsprobe is a connectivity probe for the server's /ws endpoint:
-// it connects, sends one message, prints the reply and exits 0 if the reply
-// is {"t":"NOT_IMPLEMENTED"} (the SRV-00 placeholder).
+// it connects, sends a protocol v1 HELLO, prints the reply and exits 0 if it
+// is a WELCOME (cmd/lobbyprobe exercises the whole lobby flow).
 //
 //	go run ./cmd/wsprobe -url ws://localhost:8080/ws
 //	go run ./cmd/wsprobe -url wss://<domain>/ws
@@ -38,21 +38,24 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+
+	"github.com/omarmaarouf18/spd-coop/server/internal/protocol"
 )
 
 func main() {
 	url := flag.String("url", "ws://localhost:8080/ws", "websocket URL to probe")
 	timeout := flag.Duration("timeout", 10*time.Second, "overall timeout")
 	insecure := flag.Bool("insecure", false, "skip TLS certificate verification (local testing only)")
+	gameVersion := flag.Int("game-version", 922, "gameVersionCode sent in HELLO")
 	flag.Parse()
 
-	if err := probe(*url, *timeout, *insecure); err != nil {
+	if err := probe(*url, *timeout, *insecure, *gameVersion); err != nil {
 		fmt.Fprintf(os.Stderr, "wsprobe: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func probe(url string, timeout time.Duration, insecure bool) error {
+func probe(url string, timeout time.Duration, insecure bool, gameVersion int) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -69,8 +72,12 @@ func probe(url string, timeout time.Duration, insecure bool) error {
 	defer conn.CloseNow()
 	fmt.Printf("connected to %s\n", url)
 
-	msg := `{"t":"PROBE"}`
-	if err := conn.Write(ctx, websocket.MessageText, []byte(msg)); err != nil {
+	msg, err := protocol.Encode(protocol.C2S, protocol.Envelope{Seq: 1},
+		&protocol.Hello{Protocol: protocol.Version, GameVersionCode: gameVersion, Platform: "desktop"})
+	if err != nil {
+		return err
+	}
+	if err := conn.Write(ctx, websocket.MessageText, msg); err != nil {
 		return fmt.Errorf("write: %w", err)
 	}
 	fmt.Printf("sent:     %s\n", msg)
@@ -82,8 +89,12 @@ func probe(url string, timeout time.Duration, insecure bool) error {
 	fmt.Printf("received: %s\n", data)
 	_ = conn.Close(websocket.StatusNormalClosure, "")
 
-	if string(data) != `{"t":"NOT_IMPLEMENTED"}` {
-		return fmt.Errorf("unexpected reply %q", data)
+	env, _, err := protocol.DecodeS2C(data)
+	if err != nil {
+		return fmt.Errorf("reply is not valid protocol v1: %w", err)
+	}
+	if env.T != protocol.TWelcome {
+		return fmt.Errorf("expected WELCOME, got %s", env.T)
 	}
 	return nil
 }

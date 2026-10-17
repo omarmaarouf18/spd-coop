@@ -1,0 +1,18 @@
+{
+  "name": "c2s-v2",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "unsupported_version",
+  "field": "v",
+  "note": "answered with REJECT{VERSION_MISMATCH}",
+  "message": {
+    "v": 2,
+    "t": "HELLO",
+    "seq": 1,
+    "p": {
+      "protocol": 1,
+      "gameVersionCode": 922,
+      "platform": "desktop"
+    }
+  }
+}

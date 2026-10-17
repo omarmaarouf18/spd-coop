@@ -1,0 +1,16 @@
+{
+  "name": "s2c-error-msg-too-long",
+  "direction": "s2c",
+  "valid": false,
+  "reason": "too_long",
+  "field": "p.msg",
+  "message": {
+    "v": 1,
+    "t": "ERROR",
+    "seq": 1,
+    "p": {
+      "code": "INTERNAL",
+      "msg": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    }
+  }
+}

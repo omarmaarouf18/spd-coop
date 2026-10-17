@@ -1,0 +1,21 @@
+{
+  "name": "s2c-welcome-bad-player-id",
+  "direction": "s2c",
+  "valid": false,
+  "reason": "bad_format",
+  "field": "p.playerId",
+  "message": {
+    "v": 1,
+    "t": "WELCOME",
+    "seq": 1,
+    "p": {
+      "playerId": "A1B2C3D4E5F60718",
+      "resumeToken": "fake-fake-fake-fake-fake-fake-fake-fake-fak",
+      "epoch": "e1e2e3e4e5e6e7e8",
+      "serverTime": 1,
+      "resumed": false,
+      "replayed": 0,
+      "complete": true
+    }
+  }
+}
