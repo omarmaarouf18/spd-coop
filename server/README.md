@@ -44,6 +44,11 @@ the connection), 256 reliable events kept per room for replay, max frame 64 KiB.
 `cmd/lobbyprobe` simulates two clients and checks every step of the first-playable flow. It exits
 0 only if every step matched (`PASS: every step matched`).
 
+`server/go.mod` needs the Go in `tools/versions.env` (`GO_VERSION`). If your Go is older and
+`GOTOOLCHAIN=local` (`go: go.mod requires go >= …`), run once `go env -w GOTOOLCHAIN=auto`, or prefix
+the commands below with `GOTOOLCHAIN=go<GO_VERSION>`. The gate and `make server-probe` do this
+themselves.
+
 ```bash
 cd server
 go run ./cmd/lobbyprobe                                   # ws://localhost:8080/ws
@@ -54,7 +59,15 @@ Steps: both `HELLO` → `ROOM_CREATE` / `ROOM_JOIN` → `READY` ×2 → `RUN_STA
 `0 ≤ seed < 26^9`) → `GHOST` each way (server-set `from`) → client B is killed → A gets
 `ALLY_STATUS{connected:false}` → B resumes with its token → A gets `ALLY_STATUS{connected:true}`.
 
-**Restart survival** (a running run must outlive a server restart):
+**Restart survival** (a running run must outlive a server restart). From the repo root, one command
+runs the whole flow in Docker (compose up, probe with `-state`, restart the server, probe with
+`-resume`, compose down) and prints `server-probe: PASS`:
+
+```bash
+make server-probe
+```
+
+The same steps by hand:
 
 ```bash
 go run ./cmd/lobbyprobe -state /tmp/probe.json            # full flow, then save both players' resume data

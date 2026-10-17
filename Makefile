@@ -3,7 +3,7 @@
 # NOTE: the repo path contains spaces ("CS tools", "game dev"); recipes only
 # use paths relative to the repo root.
 
-.PHONY: help ensure-hooks check ci ci-full commit push tools worktree-new worktree-list worktree-remove server-dev
+.PHONY: help ensure-hooks check ci ci-full commit push tools worktree-new worktree-list worktree-remove server-dev server-probe
 
 .DEFAULT_GOAL := help
 
@@ -21,6 +21,7 @@ help:
 	@echo "make push           owner only, main worktree only"
 	@echo "make tools          install the pinned gate tools (tools/versions.env)"
 	@echo "make server-dev     run the Go server locally in Docker"
+	@echo "make server-probe   end-to-end server check in Docker (lobby, run start, restart, resume)"
 
 ensure-hooks:
 	@if [ "$$(git config --get core.hooksPath 2>/dev/null)" != ".githooks" ]; then \
@@ -90,3 +91,7 @@ worktree-remove:
 # Local server on :8080 (no TLS); see deploy/docker-compose.dev.yml.
 server-dev:
 	docker compose -f deploy/docker-compose.dev.yml up --build
+
+# The SRV-01 end-to-end flow in one command; see scripts/server-probe.sh.
+server-probe:
+	@bash scripts/server-probe.sh
