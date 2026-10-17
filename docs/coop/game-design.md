@@ -1,0 +1,223 @@
+# Co-op Game Design — "Logic Link PD"
+
+> Status: **DRAFT v0.1** (2026-10-17). Decided items are marked ✅. Open items are marked ❓ and listed in §11.
+> Every number in this doc is a **starting value for playtesting**, not final balance.
+
+---
+
+## 1. Pillars
+
+1. **Two worlds, one team.** Each player is in their own copy of the same dungeon. You can't fight side by side (except via Super Sync), but you **need each other** to get through.
+2. **Interdependence over convenience.** The best moments are when *my* world has the answer to *your* problem: a key, a code, a lever, a warning.
+3. **Pressure without stalling.** In a turn-based game nobody should be able to freeze a co-op moment by standing still.
+4. **Failure is a setback, never a dead end.** No permanent softlocks. Every co-op mechanic has a fallback.
+5. **Single-player stays vanilla.** Everything here exists only in co-op runs.
+
+## 2. Core concepts
+
+| Concept | Definition |
+|---|---|
+| **World** | One player's local simulation of the dungeon. Same seed means the same map, cell for cell. |
+| **Ghost** | The ally's visual presence in your world: translucent, intangible, ignored by mobs. It mirrors the ally's position (same cell coordinates). |
+| **Role A / B** | Assigned per co-op room/mission (alternating, seeded). Decides who is locked/trapped and who holds the solution. |
+| **Co-op Room** | A level-gen room type with asymmetric state per role. Server holds its runtime state. |
+| **Mission** | A timed co-op event (e.g. The Cell). Server-run state machine. |
+| **Region** | Floors 1–5 Sewers, 6–10 Prison, 11–15 Caves, 16–20 City, 21–25 Halls. |
+| **Region start** | `((depth - 1) / 5) * 5 + 1`, i.e. 1 / 6 / 11 / 16 / 21. |
+
+### 2.1 Floor rules ✅ (partially)
+- **Free roam** on normal floors. Players may be on different floors.
+- **Mandatory co-op gates** (rare, fixed points, e.g. the floor before a boss) require **both players on the same floor**. The stairs down don't open until the gate is solved.
+- **Optional co-op rooms** appear more often and give better loot. Skipping them is allowed.
+- When the ally is on another floor: the ghost is hidden, and the ally compass shows "↓3" / "↑1" instead of an arrow.
+
+## 3. Communication
+
+Players on mobile can't type quickly, so communication is a core system, not polish.
+
+- **Ping:** long-press a cell to show a marker in the ally's world at the same cell for ~5s. Types: *Here* / *Danger* / *Key/Item* / *Go*.
+- **Quick messages:** a radial of ~8 phrases ("Help!", "Wait", "Found key", "Trapped", "Coming", …), all localizable.
+- **Ally status chip:** the ally's HP %, depth, and state (OK / In mission / Downed).
+- Voice chat is out of scope (people use Discord).
+
+## 4. Mission: **The Cell** ✅
+
+The flagship co-op mechanic. One player gets trapped, and both have to act to free them.
+
+### 4.1 Setup
+- A **Cell room** is generated on eligible floors (co-op runs only). It's the same room in both worlds, with asymmetric state by role:
+  - **Prisoner (role A):** walking into the cell triggers it. The door slams shut (*locked in A's world, open in B's world*).
+  - **Rescuer (role B):** the cell door is open in B's world. A **Cell Key** spawns at a seeded location on B's floor, chosen from the candidate cells when the mission starts. B gets a ping toward it.
+- The mission starts and the **server** starts the timer. Both players see the timer and each other's task progress.
+
+### 4.2 Tasks (both must act)
+- **Rescuer:** find the Cell Key in their world, walk their **ghost** to the cell door (same cells), then use **Give**. The server transfers the key (exactly once), and the door unlocks in A's world.
+- **Prisoner:** **survive escalating waves** spawned inside the cell (§4.4). Optional variant ❓: a lever/rune task inside the cell that shortens the timer, or that the rescuer must read out from a wall in their world.
+
+### 4.3 Outcomes
+```
+Mission start (timer + waves)
+│
+├─ Key delivered before prisoner falls
+│     → door opens, waves stop, REWARD for both (§4.6)
+│
+└─ Prisoner HP reaches 0
+      → Prisoner is DOWNED (§5) for the downed window
+      ├─ Rescuer reads Scroll of Recall in time → prisoner revives (§5.2), mission ends (no reward)
+      └─ No scroll / window expires
+            → BOTH players are returned to REGION START (§4.5)
+```
+- There is **no "timer just runs out" ending**. The waves *are* the timer: they escalate until the prisoner can't hold. A hard cap (§4.4) guarantees the mission ends.
+
+### 4.4 Anti-stall: real time + forced turns ✅
+Turn-based problem: a world's time only moves when its hero acts. If timers counted turns, a player could freeze everything by standing still. So:
+- **The mission clock is real time**, held by the server.
+- **Forced turns:** during a mission, if a player doesn't act within **5 s**, their game performs a *wait* turn automatically. This applies to **both** players, so both worlds keep moving.
+- **Pause:** the clock and forced turns pause if either player disconnects or backgrounds the app (iOS calls, etc.). After **90 s** paused, the mission resolves as a failure without the return penalty (❓).
+- **Waves:** one wave every **~30 s** of mission clock, each stronger than the last. They draw from the region's mob pool, scaled +1 tier every 2 waves. After **hard cap = 4 min + 15 s × region index**, waves become lethal (guaranteed resolution).
+
+### 4.5 Return penalty ✅
+- **Both** players are sent to the **region start** floor (1/6/11/16/21), at its entrance.
+- It's implemented with the vanilla `InterlevelScene.Mode.RETURN` (`returnDepth/returnBranch/returnPos`). **Never** set `Dungeon.depth` by hand.
+- **Exploit guard:** region starts 6/11/16/21 have shops, so failing must not be a free teleport. The penalty also includes: −25% current gold for both, and the Cell's reward is lost. ❓ tune.
+- Floors already explored stay explored. Stairs are marked on the map to cut down the walk back.
+
+### 4.6 Reward
+- Success gives **both** players a reward from the Cell's seeded loot: one guaranteed rare (artifact / +2 item / exotic), plus a small shared buff ("Bonded": +10% accuracy for 200 turns). ❓
+- The prisoner role alternates between missions, so neither player is always the one trapped.
+
+### 4.7 Frequency
+- Optional Cells: ~1 per 2 floors (seeded). They don't spawn on boss floors or on floor 1.
+- Mandatory gate: ❓ (candidate: floor 4, 9, 14, 19, 24, the floor before each boss).
+
+## 5. Downed & revive ✅
+
+### 5.1 Downed
+- In a co-op run, when a hero would die (and no Ankh or other vanilla save applies), they become **Downed** instead:
+  - paralysed, invulnerable, ignored by mobs, shown with a downed visual for the ally;
+  - the **downed window** is **30 s real time** (with forced turns, same rules as §4.4).
+- If the window expires, the **real death path** runs (vanilla `Hero` death). Downed must **never** just expire into a free revive (that was a bug in the prototype).
+- Outside a mission, real death means the run ends for that player ❓ (or: the surviving player can still revive at a shrine later?).
+
+### 5.2 Scroll of Recall
+- **Use:** read it while the ally is Downed (any floor). The ally revives with **25% HP** and returns to their region start via `Mode.RETURN` (outside The Cell), or stays in place with the mission ended (inside The Cell).
+- **Rarity:** 1 guaranteed per region (seeded chest), plus possible shop stock. This makes it something players save up.
+- **Can't be used** on yourself.
+
+## 6. Potion of **Super Sync** ✅ (concept) / ❓ (control model)
+
+An emergency potion. The drinker's ghost **materializes** in the ally's world: it becomes visible and solid, and it can **attack the ally's monsters**.
+
+### 6.1 Rules
+- **Effect:** for **15 turns of the ally's world**, the drinker's ghost becomes a **Projection** in the ally's world, standing next to the ally:
+  - visible and solid; mobs can see and attack it;
+  - it uses a **stat snapshot** of the drinker taken when they drink (current HP, damage range from their equipped weapon + STR, accuracy, evasion, armor). Enchant/glyph procs are out of scope for v1.
+- **The drinker's own body:** stays in their world in a trance (can't act).
+  - Outside missions, the drinker's world is naturally paused (turn-based: it's not acting), so the body is safe.
+  - **Inside a mission**, forced turns keep running, so the body is **vulnerable** while projected. That's a real choice: as rescuer, do you project in to help the prisoner survive, or keep running for the key?
+- **Damage taken** by the Projection is applied to the drinker's real HP when they return. If the Projection "dies", the effect ends early and the drinker returns at **1 HP** (never killed outright).
+- **Rarity:** rare. About 1 per 2 regions, plus a possible alchemy recipe later. Only one Super Sync can be active per pair at a time. It can't be drunk while Downed.
+- **Single-player:** this item never generates. If it somehow exists, it does nothing and isn't consumed.
+
+### 6.2 Control model ✅ player-controlled (D-011)
+The **drinker controls the Projection directly**: they move it and attack with it.
+- **Authority:** the Projection exists only in the **ally's world** (the host world). The ally's client simulates it: it's an `Actor` whose turn **waits for remote input** from the drinker.
+- **Turn order:** in the ally's world, the Projection acts in the normal actor queue (speed = 1 action per turn, like a hero). When its turn comes, the ally's world pauses until the drinker's command arrives.
+- **Anti-stall:** if no command arrives within **5 s**, the Projection does a *wait* turn (same forced-turn rule as missions). On disconnect, it waits every turn, and after 3 missed turns the effect ends.
+- **Commands (v1):** move to adjacent cell, melee attack adjacent mob, wait. Out of scope for v1: items, throwing, wands, abilities, picking up loot (the Projection can't take items from the ally's world).
+
+### 6.3 What the drinker sees: "Remote View" ⚠️ the expensive part
+The drinker's client **does not have the ally's world**. The map layout is identical (same seed), but the mobs, their HP, doors, and the ally's position are different. So:
+- While Super Sync is active, the drinker's screen switches to **Remote View**: it renders the **same map** (local copy, plus the terrain changes the ally reports) and overlays the **dynamic entities streamed from the ally's world**: mobs in the Projection's FOV (type, pos, HP%, state), the ally hero, and the Projection itself.
+- The ally's client sends a **view snapshot after every Projection turn and every time a mob moves within its FOV** (`SYNC_VIEW`). Mobs are drawn with their normal sprites, but they're just *puppets* on the drinker's side: no AI, no simulation.
+- Mob info is limited to what the Projection can see (its FOV computed in the ally's world). This keeps both the message size and the fairness in check.
+- Meanwhile the drinker's own world is paused outside missions; inside missions it keeps running under forced turns (§6.1), and a small picture-in-picture/HP alert warns if their real body is being hit.
+
+### 6.4 Network sketch
+```
+Drinker                     Server                       Ally (host world)
+SYNC_DRINK{snapshot} ─────▶ validate (potion, cooldown) ─▶ SYNC_START{snapshot, turns}
+                                                          spawn Projection actor
+◀──────────────────────────────────────────────────────── SYNC_VIEW{turn, terrainDiff, entities[]}
+SYNC_CMD{turn, move|attack|wait, cell} ─────────────────▶ apply on Projection's turn
+◀──────────────────────────────────────────────────────── SYNC_VIEW{...}   (repeat)
+                                                          duration ends / Projection dies
+◀─────────────────────────── SYNC_END{hpLost, reason} ◀── SYNC_REPORT{hpLost, reason}
+apply hpLost, leave Remote View
+```
+`SYNC_CMD` carries the `turn` number it answers, so stale commands are dropped. Combat math runs only in the ally's world.
+
+## 7. Co-op room catalog (puzzles)
+
+All rooms are seeded, appear in both worlds, use role A/B asymmetry, and keep their state on the server.
+
+| Room | Role A sees | Role B does | Fallback |
+|---|---|---|---|
+| **The Cell** (§4) | trapped + waves | fetches key, gives via ghost | waves → downed → Recall / region return |
+| **Mirror Lock** | door locked | key is in B's world; B "gives" it via ghost | after 3 min, A can break the door for −20% HP |
+| **Pressure Bridge** | chasm, no bridge | B stands on a plate, which raises the bridge in A's world while B stays | the bridge stays up 10 turns after B leaves |
+| **Rune Wall** | rune keypad | B reads 4 runes on a wall only visible in B's world | wrong code ×3 → spawns mobs, code rerolls |
+| **Totem Shield** (boss variant) | boss has a shield | B destroys a totem that only exists in B's world | the shield decays slowly by itself |
+| **Dark Floor** | darkness | B's ghost emits light in A's world (radius 2) | normal torches still work |
+| **Item Shrine** | — | either player sends 1 item to the other for a cost (gold/HP) | — |
+
+New rooms must follow the template in §9.
+
+## 8. Ghost behavior
+
+- Translucent and tinted, mirroring the ally's cell position; it animates move/attack/downed.
+- **Intangible:** mobs ignore it, and it doesn't block cells. Exceptions: Super Sync (§6) and light (Dark Floor).
+- **Scouting:** the ghost reveals nothing extra by default. ❓ Should the ally's ghost share a small FOV radius (1–2) in your world? It's strong, and it might replace the need for pings.
+- Hidden when the ally is on another floor.
+
+## 9. Template for a new co-op mechanic
+
+Copy this into §7 / a new section:
+
+```
+### <Name>
+- Fantasy / why it's fun:
+- Role A sees / does:
+- Role B sees / does:
+- Win condition (who decides: server):
+- Fallback (no softlock):
+- Timers (real time? forced turns?):
+- Seeded elements (what level gen must place identically):
+- Network messages (→ architecture.md):
+- Saves (what persists if the app closes mid-way):
+- Single-player behavior: (must be: doesn't exist)
+- Tuning values:
+```
+
+## 10. Tuning table (v0)
+
+| Value | Start |
+|---|---|
+| Forced-turn timeout (missions / downed / Super Sync Projection) | 5 s |
+| Cell wave interval | 30 s |
+| Cell hard cap | 4 min + 15 s × region index |
+| Downed window | 30 s real time |
+| Revive HP | 25% |
+| Return penalty gold | −25% |
+| Super Sync duration | 15 turns (ally's world) |
+| Super Sync rarity | ~1 / 2 regions |
+| Recall rarity | 1 guaranteed / region |
+| Optional Cell frequency | ~1 / 2 floors |
+| Disconnect grace before mission fails | 90 s |
+
+## 11. Open questions ❓
+
+1. Mandatory gates: which floors? (proposed: the floor before each boss)
+2. Real death outside missions: does the run end for that player, or can they be revived later?
+3. ~~Super Sync AI vs player-controlled~~ → **player-controlled** (D-011). Still open: should the Projection be able to use thrown weapons in v2?
+4. Should the ghost share a small FOV?
+5. The Cell: a prisoner-side puzzle in addition to the waves?
+6. Return penalty: is −25% gold enough to stop "fail to reach the shop" abuse?
+7. Do co-op runs count for rankings/badges? (Vanilla marks custom seeds as unranked.)
+
+## 12. Deferred ideas (not v1)
+
+- **Sub-dungeon punishment:** instead of a region return, a failed mission drops both players into an unknown sub-dungeon full of mobs. Escaping returns them to the Cell's floor. This needs a new level type, its own generation and sync. Revisit after v1.
+- Super Sync v2: items/thrown weapons/abilities for the Projection.
+- Alchemy recipes for Super Sync / Recall.
+- More than 2 players (out of scope: the whole design assumes A/B).
