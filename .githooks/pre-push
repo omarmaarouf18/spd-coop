@@ -333,10 +333,12 @@ if [ "$SCOPE_PROTOCOL" = 1 ]; then
 		block "Go protocol contract tests failed"
 	}
 	grep -E 'contract fixtures exercised|^ok' "$GATE_TMP/protocol-go.log"
-	# NET-01 hook: add the Java contract test here (same fixtures), e.g.
-	#   ./gradlew --console=plain :core:test --tests '*ProtocolContract*' || block "Java protocol contract tests failed"
-	# and remove the next line.
-	echo "protocol: Java contract tests not wired yet (NET-01)"
+	# Java side of the same fixtures (PRO-02): must pass every fixture too.
+	./gradlew --console=plain :core:test --tests '*ProtocolContract*' >"$GATE_TMP/protocol-java.log" 2>&1 || {
+		cat "$GATE_TMP/protocol-java.log"
+		block "Java protocol contract tests failed"
+	}
+	grep -E 'contract fixtures exercised' "$GATE_TMP/protocol-java.log" || true
 	stage_end
 fi
 

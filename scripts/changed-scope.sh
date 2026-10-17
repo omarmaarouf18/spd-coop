@@ -22,15 +22,16 @@
 #   server    gofmt -l, go vet, go test, govulncheck (no-op until server/go.mod exists)
 #   docker    docker build of server/ + compose config of deploy/*.yml
 #             (no-op until server/Dockerfile / deploy/ compose files exist)
-#   protocol  contract tests on docs/coop/protocol/fixtures: Go now, Java
-#             from NET-01 (see the hook in .githooks/pre-push)
+#   protocol  contract tests on docs/coop/protocol/fixtures: Go and Java
+#             (see the hook in .githooks/pre-push)
 #   docs      markdown SHA check (scripts/md-sha-check.sh)
 #   actions   actionlint on .github/workflows/*.yml and deploy/deploy.yml
 #   shell     shellcheck on scripts/*.sh and .githooks/*
 #   secrets   gitleaks on the changed range (always, whenever anything changed)
 #
 # Mapping (first match wins, per path; the scope is the union over all paths):
-#   coop/net/Protocol.java, server/internal/protocol/**,
+#   coop/net/** (Protocol.java, ProtocolJson.java, CoopSession.java ...),
+#   server/internal/protocol/**,
 #   docs/coop/protocol/fixtures/**      -> protocol + java + server
 #   docs/coop/protocol/*.md (the spec)  -> protocol + docs
 #   server/Dockerfile, server/.dockerignore -> server + docker
@@ -69,7 +70,8 @@ cd "$ROOT"
 ALL_TOKENS="java android server docker protocol docs actions shell secrets"
 GATE_TOKENS="java server docker protocol docs actions shell secrets"
 ZERO_SHA_RE='^0+$'
-COOP_PROTOCOL_JAVA="core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/coop/net/Protocol.java"
+#PRO-02: the whole coop/net package (Protocol/ProtocolJson/CoopSession, ...)
+COOP_NET="core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/coop/net/*"
 
 say() { printf 'scope: %s\n' "$*" >&2; }
 
@@ -86,7 +88,7 @@ on() { # on <token...>
 classify() { # classify <path>
 	local p="$1"
 	case "$p" in
-	"$COOP_PROTOCOL_JAVA" | server/internal/protocol/* | docs/coop/protocol/fixtures/*)
+	"$COOP_NET" | server/internal/protocol/* | docs/coop/protocol/fixtures/*)
 		on protocol java server
 		;;
 	docs/coop/protocol/*.md)

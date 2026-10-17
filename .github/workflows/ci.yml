@@ -127,9 +127,7 @@ jobs:
         run: '"$GOVULNCHECK_BIN" ./...'
 
   # Contract tests on the shared fixtures (docs/coop/protocol/fixtures,
-  # PROTOCOL.md §11). Go side now.
-  # NET-01: add the Java side here as a second step after setup-java, e.g.
-  #   ./gradlew --console=plain :core:test --tests '*ProtocolContract*'
+  # PROTOCOL.md §11). Go side and Java side (PRO-02) must pass the same files.
   protocol-contract:
     name: Protocol contract (fixtures)
     needs: gate-config
@@ -145,6 +143,14 @@ jobs:
       - name: Go contract tests
         working-directory: server
         run: go test -count=1 -v -run 'TestContract' ./internal/protocol/
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ needs.gate-config.outputs.jdk }}
+
+      - name: Java contract tests
+        run: ./gradlew --console=plain :core:test --tests '*ProtocolContract*'
 
   docker:
     name: Docker image & compose
