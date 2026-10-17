@@ -1,0 +1,25 @@
+# .gitleaks.toml — secret-scan rules (WF-01).
+#
+# Read by scripts/gitleaks-scan.sh (local gate: `make check`, pre-push) and by
+# the secret-scan job in .github/workflows/ci.yml. gitleaks is pinned in
+# tools/versions.env (GITLEAKS_VERSION) and installed by scripts/install-tools.sh.
+#
+# Only changed ranges / uncommitted changes are scanned, never all history:
+# upstream SPD history is not ours to gate.
+
+title = "spd-coop gitleaks config"
+
+# Keep every default rule.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = """Key-shaped literals in tests (fake tokens, passwords).
+Only the noisy generic rule is relaxed: specific rules (AWS, GitHub, private
+keys, ...) still fire in test files."""
+targetRules = ["generic-api-key"]
+paths = [
+  '''_test\.go$''',
+  '''(^|/)src/test/''',
+  '''(^|/)testdata/''',
+]

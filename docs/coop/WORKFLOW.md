@@ -1,7 +1,7 @@
 # Workflow — branches, commits, worklogs, gate, CI
 
 > Adapted from the SaaS prototype's WF-01/WF-03 system and scaled down for a 2–3 person game project.
-> Status: **documented, not yet implemented** (scripts/hooks/CI land in task `WF-01`, see §7).
+> Status: local gate, hooks and worktree helper implemented in `WF-01` (§6). CI lands in `WF-02` (§7).
 
 ## 1. Branches
 
@@ -79,16 +79,20 @@ Every piece of work has an ID: `<AREA>-<NN>[letter]`, e.g. `NET-01`, `MEC-03b`.
 
 | Changed paths | Stages |
 |---|---|
-| `core/**`, `SPD-classes/**`, `desktop/**`, `services/**`, gradle files | `./gradlew :core:compileJava :desktop:compileJava` + `./gradlew test` (unit + determinism goldens) |
-| `android/**` | above + `./gradlew :android:assembleDebug` |
-| `server/**` | `gofmt -l`, `go vet ./...`, `go test ./...`, `govulncheck` |
-| `server/Dockerfile`, `deploy/**` | `docker build` of the server image + `docker compose -f deploy/docker-compose.yml config` and the same for `.dev.yml` |
-| protocol (`Protocol.java`, `server/internal/protocol/**`, fixtures) | Java **and** Go contract tests against `docs/coop/protocol/fixtures/*.json` |
-| `*.md` | markdown SHA check (no full SHAs on agent branches) |
-| always | `gitleaks` on the changed range |
+| `core/**`, `SPD-classes/**`, `desktop/**`, `services/**`, `ios/**`, root gradle files | `java`: `./gradlew :core:compileJava :desktop:compileJava test` (unit + determinism goldens). Without an Android SDK, `-x :android:test` is added locally and a warning is printed; CI always has the SDK |
+| `android/**` | `java` + `android`: `./gradlew :android:assembleDebug` (blocks without an Android SDK) |
+| `server/**` | `server`: `gofmt -l`, `go vet ./...`, `go test ./...`, `govulncheck` (no-op until `server/go.mod` exists) |
+| `server/Dockerfile`, `deploy/**` | `docker`: `docker build` of the server image + `docker compose config` of `deploy/docker-compose.dev.yml` and `deploy/docker-compose.prod.yml` (the prod file the way CI syncs it: `:IMAGE_TAG` substituted, `.env` from `.env.example`) |
+| `deploy/deploy.yml` | `docker` + `actions` |
+| protocol (`Protocol.java`, `server/internal/protocol/**`, fixtures) | `protocol` (+ `java` + `server`): Java **and** Go contract tests against `docs/coop/protocol/fixtures/*.json`. Until `PRO-01` wires them, the stage blocks if the fixtures dir exists (fail safe) |
+| `*.md` | `docs`: markdown SHA check (no full SHAs on agent branches; elsewhere every full SHA must be a real commit reachable from HEAD) |
+| `Makefile`, `scripts/**`, `.githooks/**`, `tools/**`, `.gitleaks.toml`, `.github/**` | **gate scope**: every stage except `android` (the gate itself changed), plus `shell` (shellcheck) and `actions` (actionlint) |
+| `LICENSE.txt`, `.gitignore`, `metadata/**`, non-md `docs/**` | `secrets` only |
+| anything else | **full** gate (fail safe) |
+| always | `secrets`: `gitleaks` on the changed range; `versions`: drift guard against `tools/versions.env` |
 
 - `make check` → scoped gate, writes the **pass stamp** for the exact tree.
-- `make ci-full` → everything (what GitHub CI runs).
+- `make ci-full` → everything (what GitHub CI runs; locally it needs an Android SDK for the `android` stage).
 - `make commit` → enforces the stamp.
 - `make worktree-new TASK=<ID> SLUG=<slug>` → branch + worktree + hooks + push guard.
 - `.githooks/pre-push` → blocks pushes from worktrees/`agent/*`, then runs the gate on the pushed range.
