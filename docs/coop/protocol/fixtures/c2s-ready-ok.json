@@ -1,0 +1,14 @@
+{
+  "name": "c2s-ready-ok",
+  "direction": "c2s",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "READY",
+    "seq": 3,
+    "p": {
+      "heroClass": "HUNTRESS",
+      "ready": true
+    }
+  }
+}

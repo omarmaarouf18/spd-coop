@@ -1,0 +1,15 @@
+{
+  "name": "c2s-quick-with-floor-ok",
+  "direction": "c2s",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "QUICK",
+    "seq": 8,
+    "depth": 12,
+    "branch": 0,
+    "p": {
+      "phraseId": 63
+    }
+  }
+}

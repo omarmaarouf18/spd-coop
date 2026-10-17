@@ -1,0 +1,15 @@
+{
+  "name": "s2c-pong-ok",
+  "direction": "s2c",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "PONG",
+    "seq": 14,
+    "ack": 9,
+    "p": {
+      "t": 1792213718000,
+      "serverTime": 1792213718050
+    }
+  }
+}

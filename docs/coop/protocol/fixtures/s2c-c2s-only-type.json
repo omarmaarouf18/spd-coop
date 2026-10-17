@@ -1,0 +1,17 @@
+{
+  "name": "s2c-c2s-only-type",
+  "direction": "s2c",
+  "valid": false,
+  "reason": "unknown_type",
+  "field": "t",
+  "message": {
+    "v": 1,
+    "t": "HELLO",
+    "seq": 1,
+    "p": {
+      "protocol": 1,
+      "gameVersionCode": 922,
+      "platform": "desktop"
+    }
+  }
+}

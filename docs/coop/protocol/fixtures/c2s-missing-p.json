@@ -1,0 +1,12 @@
+{
+  "name": "c2s-missing-p",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "missing_field",
+  "field": "p",
+  "message": {
+    "v": 1,
+    "t": "ROOM_CREATE",
+    "seq": 2
+  }
+}

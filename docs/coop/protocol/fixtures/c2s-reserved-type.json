@@ -1,0 +1,16 @@
+{
+  "name": "c2s-reserved-type",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "unknown_type",
+  "field": "t",
+  "note": "reserved for later versions (§5.4)",
+  "message": {
+    "v": 1,
+    "t": "MISSION_TRIGGER",
+    "seq": 1,
+    "p": {
+      "roomId": "x"
+    }
+  }
+}

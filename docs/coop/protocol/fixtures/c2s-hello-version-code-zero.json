@@ -1,0 +1,17 @@
+{
+  "name": "c2s-hello-version-code-zero",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "out_of_range",
+  "field": "p.gameVersionCode",
+  "message": {
+    "v": 1,
+    "t": "HELLO",
+    "seq": 1,
+    "p": {
+      "protocol": 1,
+      "gameVersionCode": 0,
+      "platform": "desktop"
+    }
+  }
+}

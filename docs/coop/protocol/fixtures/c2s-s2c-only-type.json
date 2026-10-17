@@ -1,0 +1,13 @@
+{
+  "name": "c2s-s2c-only-type",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "unknown_type",
+  "field": "t",
+  "message": {
+    "v": 1,
+    "t": "WELCOME",
+    "seq": 1,
+    "p": {}
+  }
+}

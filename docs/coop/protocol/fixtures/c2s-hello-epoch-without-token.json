@@ -1,0 +1,18 @@
+{
+  "name": "c2s-hello-epoch-without-token",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "forbidden_field",
+  "field": "p.epoch",
+  "message": {
+    "v": 1,
+    "t": "HELLO",
+    "seq": 1,
+    "p": {
+      "protocol": 1,
+      "gameVersionCode": 922,
+      "platform": "desktop",
+      "epoch": "e1e2e3e4e5e6e7e8"
+    }
+  }
+}

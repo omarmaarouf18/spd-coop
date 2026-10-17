@@ -1,0 +1,20 @@
+{
+  "name": "s2c-welcome-missing-epoch",
+  "direction": "s2c",
+  "valid": false,
+  "reason": "missing_field",
+  "field": "p.epoch",
+  "message": {
+    "v": 1,
+    "t": "WELCOME",
+    "seq": 1,
+    "p": {
+      "playerId": "a1b2c3d4e5f60718",
+      "resumeToken": "fake-fake-fake-fake-fake-fake-fake-fake-fak",
+      "serverTime": 1,
+      "resumed": false,
+      "replayed": 0,
+      "complete": true
+    }
+  }
+}

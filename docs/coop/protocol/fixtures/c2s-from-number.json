@@ -1,0 +1,16 @@
+{
+  "name": "c2s-from-number",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "wrong_type",
+  "field": "from",
+  "message": {
+    "v": 1,
+    "t": "QUICK",
+    "seq": 1,
+    "from": 5,
+    "p": {
+      "phraseId": 1
+    }
+  }
+}

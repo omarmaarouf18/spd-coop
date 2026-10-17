@@ -47,26 +47,31 @@ Hooks in upstream files (each marked `// COOP:`). The expected list, to keep min
 
 ## 3. Protocol (v1, JSON over wss)
 
+> **The spec is [`docs/coop/protocol/PROTOCOL.md`](protocol/PROTOCOL.md)**, and the contract is `docs/coop/protocol/fixtures/*.json`. Both the Java client and the Go server (`server/internal/protocol`) must pass every fixture. This section is only a summary. If it disagrees with PROTOCOL.md, PROTOCOL.md wins.
+
 ### 3.1 Envelope
 ```json
 { "v": 1, "t": "MSG_TYPE", "seq": 42, "ack": 17, "from": "<playerId>",
   "depth": 7, "branch": 0, "p": { ... typed payload ... } }
 ```
-- `seq`: per-sender increasing number. `ack`: last seq received (for resend on reconnect).
-- `depth/branch`: required for gameplay messages. Receivers ignore wrong-floor messages unless the type is marked cross-floor.
-- `p`: a typed payload per message. **No field reuse** (the prototype reused `damage` for tile IDs).
+- `seq`: c2s counts per connection; s2c counts per player within the server's `epoch`. `ack`: the last seq received from the other side (resume/replay, PROTOCOL.md §2.1, §7).
+- `from`: set by the server on relayed presence; a client-supplied value is ignored.
+- `depth/branch`: required on `GHOST`/`MARK`, optional on `QUICK`, absent elsewhere. Receivers ignore wrong-floor messages unless the type is cross-floor.
+- `p`: a typed payload per message. **No field reuse** (the prototype reused `damage` for tile IDs). c2s rejects unknown fields; s2c receivers ignore them.
 
-### 3.2 Handshake & session
+### 3.2 Handshake, lobby, run start (v1)
 | Msg | Dir | Purpose |
 |---|---|---|
-| `HELLO{protocol, gameVersionCode, platform, playerId?, resumeToken?}` | C→S | version gate; resume if a token is given |
-| `WELCOME{playerId, resumeToken}` / `REJECT{reason}` | S→C | |
-| `ROOM_CREATE` → `ROOM_CREATED{code}` | | 6-char code |
-| `ROOM_JOIN{code}` → `ROOM_JOINED{...}` / `ERROR` | | |
-| `READY{heroClass}` | C→S | both ready → server starts the run |
-| `RUN_START{seed, roleSeed, runId}` | S→C | client creates `CoopRun` in a co-op save slot |
-| `PING`/`PONG` | both | heartbeat every 10 s, timeout 30 s |
-| `ALLY_STATUS{connected, paused}` | S→C | |
+| `HELLO{protocol, gameVersionCode, platform, resumeToken?, epoch?}` | C→S | version gate; resume if a token is given |
+| `WELCOME{playerId, resumeToken, epoch, serverTime, resumed, replayed, complete, room?, run?}` / `REJECT{code, msg, minGameVersionCode?}` | S→C | REJECT closes the connection |
+| `ROOM_CREATE` / `ROOM_JOIN{code}` / `ROOM_LEAVE` / `READY{heroClass, ready}` | C→S | lobby |
+| `ROOM_STATE{code, phase, players[]}` | S→C | after every lobby change (6-char code) |
+| `RUN_START{runId, seed, roleSeed, players[]}` | S→C | both ready → the client creates `CoopRun` in a co-op save slot |
+| `PING{t}` / `PONG{t, serverTime}` | C→S / S→C | heartbeat every 10 s, timeout 30 s |
+| `ALLY_STATUS{playerId, connected, paused, lastSeen}` | S→C | on connect/disconnect/resume |
+| `ERROR{code, msg, ref_seq?}` | S→C | request failed, connection stays open |
+
+`ROOM_STATE`, `RUN_START` and `ALLY_STATUS` are reliable (logged and replayed on resume). Everything else is best-effort.
 
 ### 3.3 Presence (high frequency, best-effort)
 | Msg | Cross-floor | Notes |
@@ -75,7 +80,10 @@ Hooks in upstream files (each marked `// COOP:`). The expected list, to keep min
 | `MARK{cell, kind}` | no | pings |
 | `QUICK{phraseId}` | yes | quick messages |
 
-### 3.4 Shared state (server-authoritative)
+### 3.4 Shared state (server-authoritative) — reserved names, not in v1
+
+These names are reserved in PROTOCOL.md §5.4 (a v1 server answers `ERROR{UNKNOWN_TYPE}`). They get specified when their mechanics land.
+
 | Request (C→S) | Event (S→both) | Notes |
 |---|---|---|
 | `MISSION_TRIGGER{roomId}` | `MISSION_START{missionId, type, roles, deadline, seed}` | server owns the clock |

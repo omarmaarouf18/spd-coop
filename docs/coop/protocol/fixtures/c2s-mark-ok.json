@@ -1,0 +1,16 @@
+{
+  "name": "c2s-mark-ok",
+  "direction": "c2s",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "MARK",
+    "seq": 7,
+    "depth": 5,
+    "branch": 1,
+    "p": {
+      "cell": 1023,
+      "kind": "DANGER"
+    }
+  }
+}

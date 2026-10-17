@@ -1,0 +1,16 @@
+{
+  "name": "s2c-ally-status-ok",
+  "direction": "s2c",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "ALLY_STATUS",
+    "seq": 20,
+    "p": {
+      "playerId": "b2c3d4e5f6071829",
+      "connected": false,
+      "paused": false,
+      "lastSeen": 1792213718123
+    }
+  }
+}

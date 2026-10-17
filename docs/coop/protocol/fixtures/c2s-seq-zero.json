@@ -1,0 +1,15 @@
+{
+  "name": "c2s-seq-zero",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "out_of_range",
+  "field": "seq",
+  "message": {
+    "v": 1,
+    "t": "PING",
+    "seq": 0,
+    "p": {
+      "t": 1
+    }
+  }
+}

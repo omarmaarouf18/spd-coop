@@ -1,0 +1,17 @@
+{
+  "name": "s2c-error-reject-only-code",
+  "direction": "s2c",
+  "valid": false,
+  "reason": "bad_format",
+  "field": "p.code",
+  "note": "VERSION_MISMATCH is only sent as REJECT",
+  "message": {
+    "v": 1,
+    "t": "ERROR",
+    "seq": 1,
+    "p": {
+      "code": "VERSION_MISMATCH",
+      "msg": "?"
+    }
+  }
+}

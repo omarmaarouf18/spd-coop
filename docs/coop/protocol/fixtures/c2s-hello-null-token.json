@@ -1,0 +1,19 @@
+{
+  "name": "c2s-hello-null-token",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "wrong_type",
+  "field": "p.resumeToken",
+  "note": "null is never a valid value",
+  "message": {
+    "v": 1,
+    "t": "HELLO",
+    "seq": 1,
+    "p": {
+      "protocol": 1,
+      "gameVersionCode": 922,
+      "platform": "desktop",
+      "resumeToken": null
+    }
+  }
+}

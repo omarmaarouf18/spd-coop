@@ -1,0 +1,16 @@
+{
+  "name": "s2c-error-ok",
+  "direction": "s2c",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "ERROR",
+    "seq": 3,
+    "ack": 2,
+    "p": {
+      "code": "ROOM_NOT_FOUND",
+      "msg": "no room with that code",
+      "ref_seq": 2
+    }
+  }
+}

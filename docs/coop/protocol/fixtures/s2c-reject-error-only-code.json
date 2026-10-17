@@ -1,0 +1,16 @@
+{
+  "name": "s2c-reject-error-only-code",
+  "direction": "s2c",
+  "valid": false,
+  "reason": "bad_format",
+  "field": "p.code",
+  "message": {
+    "v": 1,
+    "t": "REJECT",
+    "seq": 1,
+    "p": {
+      "code": "ROOM_FULL",
+      "msg": "?"
+    }
+  }
+}

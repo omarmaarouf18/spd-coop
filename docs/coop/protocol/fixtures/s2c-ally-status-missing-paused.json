@@ -1,0 +1,17 @@
+{
+  "name": "s2c-ally-status-missing-paused",
+  "direction": "s2c",
+  "valid": false,
+  "reason": "missing_field",
+  "field": "p.paused",
+  "message": {
+    "v": 1,
+    "t": "ALLY_STATUS",
+    "seq": 1,
+    "p": {
+      "playerId": "b2c3d4e5f6071829",
+      "connected": true,
+      "lastSeen": 1
+    }
+  }
+}

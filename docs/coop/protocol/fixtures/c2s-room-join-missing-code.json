@@ -1,0 +1,13 @@
+{
+  "name": "c2s-room-join-missing-code",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "missing_field",
+  "field": "p.code",
+  "message": {
+    "v": 1,
+    "t": "ROOM_JOIN",
+    "seq": 1,
+    "p": {}
+  }
+}

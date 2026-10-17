@@ -1,0 +1,16 @@
+{
+  "name": "s2c-pong-negative-t",
+  "direction": "s2c",
+  "valid": false,
+  "reason": "out_of_range",
+  "field": "p.t",
+  "message": {
+    "v": 1,
+    "t": "PONG",
+    "seq": 1,
+    "p": {
+      "t": -1,
+      "serverTime": 2
+    }
+  }
+}

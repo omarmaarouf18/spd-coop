@@ -1,0 +1,16 @@
+{
+  "name": "c2s-ready-ready-string",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "wrong_type",
+  "field": "p.ready",
+  "message": {
+    "v": 1,
+    "t": "READY",
+    "seq": 1,
+    "p": {
+      "heroClass": "MAGE",
+      "ready": "yes"
+    }
+  }
+}

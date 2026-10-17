@@ -1,0 +1,19 @@
+{
+  "name": "c2s-hello-with-depth",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "forbidden_field",
+  "field": "depth",
+  "message": {
+    "v": 1,
+    "t": "HELLO",
+    "seq": 1,
+    "depth": 1,
+    "branch": 0,
+    "p": {
+      "protocol": 1,
+      "gameVersionCode": 922,
+      "platform": "desktop"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "c2s-ready-bad-hero",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "bad_format",
+  "field": "p.heroClass",
+  "message": {
+    "v": 1,
+    "t": "READY",
+    "seq": 1,
+    "p": {
+      "heroClass": "mage",
+      "ready": true
+    }
+  }
+}

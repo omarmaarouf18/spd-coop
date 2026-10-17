@@ -1,0 +1,11 @@
+{
+  "name": "c2s-room-create-ok",
+  "direction": "c2s",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "ROOM_CREATE",
+    "seq": 2,
+    "p": {}
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "c2s-hello-ok",
+  "direction": "c2s",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "HELLO",
+    "seq": 1,
+    "p": {
+      "protocol": 1,
+      "gameVersionCode": 922,
+      "platform": "desktop"
+    }
+  }
+}

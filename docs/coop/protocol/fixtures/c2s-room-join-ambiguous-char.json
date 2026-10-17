@@ -1,0 +1,16 @@
+{
+  "name": "c2s-room-join-ambiguous-char",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "bad_format",
+  "field": "p.code",
+  "note": "O is not in the alphabet",
+  "message": {
+    "v": 1,
+    "t": "ROOM_JOIN",
+    "seq": 1,
+    "p": {
+      "code": "K7MZO4"
+    }
+  }
+}

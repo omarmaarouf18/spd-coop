@@ -1,0 +1,16 @@
+{
+  "name": "c2s-mark-missing-depth",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "missing_field",
+  "field": "depth",
+  "message": {
+    "v": 1,
+    "t": "MARK",
+    "seq": 1,
+    "p": {
+      "cell": 1,
+      "kind": "GO"
+    }
+  }
+}

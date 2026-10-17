@@ -1,0 +1,21 @@
+{
+  "name": "c2s-ghost-from-ignored-ok",
+  "direction": "c2s",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "GHOST",
+    "seq": 6,
+    "depth": 26,
+    "branch": 0,
+    "from": "spoofed-anything",
+    "p": {
+      "pos": 345,
+      "anim": "attack",
+      "hpPct": 0,
+      "heroClass": "WARRIOR",
+      "tier": 6
+    }
+  },
+  "note": "a client-supplied from is accepted and ignored; the server overwrites it when relaying"
+}

@@ -1,0 +1,15 @@
+{
+  "name": "c2s-seq-float",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "wrong_type",
+  "field": "seq",
+  "message": {
+    "v": 1,
+    "t": "PING",
+    "seq": 1.5,
+    "p": {
+      "t": 1
+    }
+  }
+}

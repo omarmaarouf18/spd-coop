@@ -1,0 +1,17 @@
+{
+  "name": "c2s-room-join-with-depth",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "forbidden_field",
+  "field": "depth",
+  "message": {
+    "v": 1,
+    "t": "ROOM_JOIN",
+    "seq": 1,
+    "depth": 1,
+    "branch": 0,
+    "p": {
+      "code": "K7MZQ4"
+    }
+  }
+}

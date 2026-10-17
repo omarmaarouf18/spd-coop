@@ -1,0 +1,13 @@
+{
+  "name": "c2s-quick-ok",
+  "direction": "c2s",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "QUICK",
+    "seq": 8,
+    "p": {
+      "phraseId": 3
+    }
+  }
+}

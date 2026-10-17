@@ -1,0 +1,13 @@
+{
+  "name": "c2s-p-not-object",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "wrong_type",
+  "field": "p",
+  "message": {
+    "v": 1,
+    "t": "ROOM_CREATE",
+    "seq": 1,
+    "p": []
+  }
+}

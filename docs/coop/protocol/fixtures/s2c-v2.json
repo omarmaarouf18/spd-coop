@@ -1,0 +1,16 @@
+{
+  "name": "s2c-v2",
+  "direction": "s2c",
+  "valid": false,
+  "reason": "unsupported_version",
+  "field": "v",
+  "message": {
+    "v": 2,
+    "t": "PONG",
+    "seq": 1,
+    "p": {
+      "t": 1,
+      "serverTime": 2
+    }
+  }
+}

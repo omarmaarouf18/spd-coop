@@ -1,0 +1,31 @@
+{
+  "name": "s2c-run-start-seed-negative",
+  "direction": "s2c",
+  "valid": false,
+  "reason": "out_of_range",
+  "field": "p.seed",
+  "message": {
+    "v": 1,
+    "t": "RUN_START",
+    "seq": 1,
+    "p": {
+      "runId": "c0ffee0123456789",
+      "seed": -1,
+      "roleSeed": 987654321,
+      "players": [
+        {
+          "playerId": "a1b2c3d4e5f60718",
+          "slot": 0,
+          "heroClass": "WARRIOR",
+          "platform": "desktop"
+        },
+        {
+          "playerId": "b2c3d4e5f6071829",
+          "slot": 1,
+          "heroClass": "MAGE",
+          "platform": "android"
+        }
+      ]
+    }
+  }
+}
