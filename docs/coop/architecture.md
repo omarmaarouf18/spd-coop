@@ -126,11 +126,19 @@ type Room struct {
 - Timers: mission clock, downed window, disconnect grace (pausing when a player is away).
 - Persistence: in memory while playing. Snapshot to **SQLite or bbolt** on important events and every N s, so a server restart or player resume doesn't lose the run's shared state.
 
+**Implemented in SRV-01** (`server/internal/lobby`, `server/internal/store`; the `Missions`/`Items`/`CoopRoom` parts above come with MEC-*/ITM-*):
+- Sessions, handshake + version gate (`ALLOWED_VERSIONS` = integer gameVersionCodes, empty = no gate), rooms (create/join/leave/ready), `RUN_START` once per room (seed and roleSeed from `crypto/rand`, seed `< 26^9`), presence relay to the ally with `from` written by the server, `ALLY_STATUS`, heartbeat, rate limit, resume with replay (PROTOCOL.md §6–§9).
+- SQLite schema v2 (migrated from v1): `players(player_id, token_hash, created_at, last_seen)` with only the SHA-256 of the 32-byte resume token, compared in constant time; `runs(run_id, code, seed, role_seed, created_at, phase)`; `run_players(run_id, player_id, slot, hero_class, platform)`. A database newer than the binary is refused.
+- Running runs are persisted at `RUN_START` and survive a restart: a player who `HELLO`s with its token after a restart is put back into its run (the ally shows offline until it returns). Lobby rooms live in memory only and are deleted after 10 min empty. There is no `ROOM_LEAVE` in a running room in v1.
+- The per-room reliable event log (last 256 events) is in memory: after a restart there is no replay (`complete:false`), the `WELCOME` snapshot is the truth.
+
 ### 4.2 Shape
-- One goroutine per room owns its state (actor model: no locks on room state). Connections feed a channel into the room loop.
-- Config via env vars: `PORT`, `DB_PATH`, `ALLOWED_VERSIONS`, `LOG_LEVEL`.
-- Library candidates: `github.com/coder/websocket` or `gorilla/websocket` (decide in `decisions.md`).
-- Limits: max message size, rate limit per connection, room TTL when empty.
+- One goroutine per room owns its state (actor model: no locks on room state). Connections feed a channel into the room loop. Each websocket has a reader and a writer goroutine (buffered, 256 frames); the hub's maps (`playerId → session`, `code → room`, `runId → room`) are small locked registries.
+- Room codes: 6 chars from an alphabet without `0/O/1/I/L`, unique among live rooms.
+- Config via env vars: `PORT` (8080), `DB_PATH` (`/data/coop.db`), `ALLOWED_VERSIONS` (empty), `LOG_LEVEL` (info). Usage and the `lobbyprobe` end-to-end probe: `server/README.md`.
+- Libraries (D-016): `github.com/coder/websocket`, `modernc.org/sqlite`.
+- Limits: 64 KiB max frame (close 1009), `HELLO` within 10 s, heartbeat timeout 30 s, 30 msg/s with burst 60 (sustained abuse for 5 s closes the connection), empty lobby room TTL 10 min.
+- Logs: structured `slog` for connect/hello/room/run/resume/disconnect; resume tokens never appear in logs.
 
 ### 4.3 Deployment — everything in Docker (D-014), separate deploy repo (D-015)
 
@@ -183,7 +191,7 @@ Lessons carried over from the SaaS deploy pipeline (they're real incidents there
 
 - **Outbound queue:** clients queue messages until the socket is open and resend un-acked ones after a reconnect. `CoopClient` (NET-01a) implements the first half: frames sent while not open are queued (max 256; `send()` returns false when full, never a silent drop) and flushed in order on open. Frames already handed to a socket that then dies can be lost; resending un-acked ones is the protocol layer's job (seq/ack, NET-01).
 - **Liveness:** websocket ping frames every 30 s (`setConnectionLostTimeout`) detect dead sockets; the JSON `PING`/`PONG` heartbeat (§3.2) is separate and belongs to the protocol layer.
-- **Resume:** a client reconnects with `resumeToken`; the server replays events after the client's last `ack`.
+- **Resume:** a client reconnects with `resumeToken`; the server replays events after the client's last `ack`. Implemented in SRV-01 (PROTOCOL.md §7): replay only within the same server `epoch` and while the 256-event room log still holds every missed event (`complete:true`); otherwise no replay and the `WELCOME` room/run snapshot is the truth (`complete:false`). A second connection with the same token replaces the first (`SESSION_REPLACED`).
 - **Mobile background:** the app going to background means disconnect. The server marks the player paused and pauses mission timers (game-design §4.4).
 - **Desync guard:** clients send a cheap level digest (`hash(depth, map[])`) when entering a floor. A mismatch is logged and surfaced. In parallel-worlds mode it's informational, because maps only differ through terrain changes.
 
