@@ -23,6 +23,7 @@ package com.shatteredpixel.shatteredpixeldungeon;
 
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
+import com.shatteredpixel.shatteredpixeldungeon.coop.Coop;
 import com.shatteredpixel.shatteredpixeldungeon.items.Generator;
 import com.shatteredpixel.shatteredpixeldungeon.items.Gold;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
@@ -156,6 +157,8 @@ public class Bones {
 		if (Dungeon.daily){
 			return null;
 		}
+		//COOP: remains from a player's earlier runs would differ between the two worlds
+		if (Coop.isCoopRun()) return null;
 
 		if (depth == -1) {
 

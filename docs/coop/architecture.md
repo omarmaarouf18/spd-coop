@@ -23,8 +23,11 @@
 
 ```
 coop/
-├── Coop.java            # facade: isCoopRun(), role(), hooks called from upstream files
-├── CoopRun.java         # persisted run state (Bundlable): coop flag, roomCode, playerId, role history
+├── Coop.java            # facade: isCoopRun(), every // COOP: hook calls one method here; run start/continue (NET-01c)
+├── CoopRun.java         # persisted run state (Bundlable, coop_* keys): runId, seeds, slot, hero, room, credentials (NET-01c)
+├── CoopConnection.java  # the one CoopSession + CoopClient of the game, 1 s tick, lobby state for the UI (NET-01c)
+├── CoopProfile.java     # co-op level gen with a neutral player profile (all docs read, no intro), then restores it (NET-01c)
+├── CoopSaves.java       # co-op save slots 101–106, folders coop1..coop6 (NET-01c)
 ├── net/
 │   ├── CoopClient.java  # text frames, reconnect w/ backoff, callbacks on MainThread; FrameLink; no-queue mode for CoopSession (NET-01a/b)
 │   ├── CoopTransport.java / JavaWebSocketTransport.java  # one socket per attempt; Java-WebSocket 1.6.0 (NET-01a)
@@ -37,7 +40,7 @@ coop/
 ├── mission/             # Mission state mirror, CellMission, timers UI, forced-turn controller
 ├── rooms/               # CoopRoom base + MirrorLock, PressureBridge, Cell, ...
 ├── items/               # ScrollOfRecall, PotionOfSuperSync, CellKey
-└── ui/                  # lobby window, ping wheel, mission HUD
+└── ui/                  # WndCoop lobby window (NET-01c); later ping wheel, mission HUD
 ```
 
 Hooks in upstream files (each marked `// COOP:`). The expected list, to keep minimal:
@@ -46,8 +49,10 @@ Hooks in upstream files (each marked `// COOP:`). The expected list, to keep min
 - `Hero.move/attack` → `Coop.onHeroAction(...)` (ghost updates)
 - `Actor` / `GameScene` input wait → `Coop.forcedTurnTick()` during missions
 - `GameScene` → add ghost layer + mission HUD
-- `TitleScene` → multiplayer entry
-- `Dungeon` save/load → `CoopRun` bundle
+- `TitleScene` → multiplayer entry (`Coop.addTitleButton`, NET-01c)
+- `Dungeon` init/newLevel/save/load → `Coop.onInit`, `Coop.generate`, `CoopRun` bundle (NET-01c)
+- `GamesInProgress.gameFolder` → co-op save folders; `Bones.get` → no remains in co-op runs (NET-01c)
+- `DesktopLauncher` → `LLPD_PROFILE=b` keeps a second local player's data apart (NET-01c)
 
 ## 3. Protocol (v1, JSON over wss)
 

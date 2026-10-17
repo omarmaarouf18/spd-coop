@@ -248,8 +248,8 @@ public class CoopSession implements CoopClient.Listener {
 		if (Protocol.ROOM_STATE.equals( t )) {
 			roomState( m.p );
 		} else if (Protocol.RUN_START.equals( t )) {
-			setState( State.RUNNING );
 			listener.onRunStart( m.p, false );
+			setState( State.RUNNING );
 		} else if (Protocol.ALLY_STATUS.equals( t )) {
 			listener.onAllyStatus( m );
 		} else if (Protocol.presence( t )) {
@@ -292,14 +292,15 @@ public class CoopSession implements CoopClient.Listener {
 			setState( State.READY );
 		}
 		if (run != null) {
-			setState( State.RUNNING );
 			listener.onRunStart( run, true );
+			setState( State.RUNNING );
 		}
 	}
 
+	//data before the state change: a UI redrawing on onStateChanged must already see the room
 	private void roomState( Map<String, Object> room ) {
-		setState( "running".equals( room.get( "phase" ) ) ? State.RUNNING : State.IN_LOBBY );
 		listener.onRoomState( room );
+		setState( "running".equals( room.get( "phase" ) ) ? State.RUNNING : State.IN_LOBBY );
 	}
 
 	private void reject( Message m ) {
