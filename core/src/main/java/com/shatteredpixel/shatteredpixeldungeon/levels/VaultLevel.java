@@ -38,6 +38,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.quest.vault.VaultGho
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.quest.vault.VaultGolem;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.quest.vault.VaultShaman;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.quest.vault.VaultSkeleton;
+import com.shatteredpixel.shatteredpixeldungeon.coop.levelgen.CoopLevelGen;
 import com.shatteredpixel.shatteredpixeldungeon.items.Generator;
 import com.shatteredpixel.shatteredpixeldungeon.items.Heap;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
@@ -443,7 +444,7 @@ public class VaultLevel extends CityLevel {
 					Reflection.newInstance(Random.oneOf(Mageroyal.Seed.class, Icecap.Seed.class, Stormvine.Seed.class)),
 					Reflection.newInstance(Random.oneOf(ScrollOfMirrorImage.class, ScrollOfTeleportation.class)),
 					Reflection.newInstance(Random.oneOf(StoneOfFlock.class, StoneOfShock.class, StoneOfFear.class))));
-			Collections.shuffle(consumableLoot.get(0));
+			CoopLevelGen.shuffle(consumableLoot.get(0)); // COOP: seeded shuffle
 			//first item in each tier is always a potion of healing (except T3, which has one randomly)
 			consumableLoot.get(0).add(0, new PotionOfHealing());
 		}
@@ -455,7 +456,7 @@ public class VaultLevel extends CityLevel {
 					Reflection.newInstance(Random.oneOf(Firebloom.Seed.class, Sorrowmoss.Seed.class, Blindweed.Seed.class)),
 					Reflection.newInstance(Random.oneOf(ScrollOfRecharging.class, ScrollOfTerror.class)),
 					Reflection.newInstance(Random.oneOf(StoneOfDeepSleep.class, StoneOfClairvoyance.class, StoneOfAggression.class))));
-			Collections.shuffle(consumableLoot.get(1));
+			CoopLevelGen.shuffle(consumableLoot.get(1)); // COOP: seeded shuffle
 			consumableLoot.get(1).add(0, new PotionOfHealing());
 		}
 
@@ -466,7 +467,7 @@ public class VaultLevel extends CityLevel {
 					Reflection.newInstance(Random.oneOf(Swiftthistle.Seed.class, Sungrass.Seed.class)),
 					Reflection.newInstance(Random.oneOf(ScrollOfLullaby.class, ScrollOfMagicMapping.class)),
 					Reflection.newInstance(Random.oneOf(StoneOfBlast.class, StoneOfBlink.class))));
-			Collections.shuffle(consumableLoot.get(2));
+			CoopLevelGen.shuffle(consumableLoot.get(2)); // COOP: seeded shuffle
 			consumableLoot.get(2).add(0, new PotionOfHealing());
 		}
 
@@ -478,7 +479,7 @@ public class VaultLevel extends CityLevel {
 					Reflection.newInstance(Random.oneOf(ScrollOfRetribution.class, ScrollOfTransmutation.class)),
 					Reflection.newInstance(Random.oneOf(StoneOfEnchantment.class, StoneOfAugmentation.class)),
 					new PotionOfHealing()));
-			Collections.shuffle(consumableLoot.get(3));
+			CoopLevelGen.shuffle(consumableLoot.get(3)); // COOP: seeded shuffle
 		}
 	}
 
@@ -496,6 +497,7 @@ public class VaultLevel extends CityLevel {
 	};
 
 	public Item findT3SolveItem(){
+		CoopLevelGen.stableOrder(T3SolveItems); // COOP: same start order every time
 		Random.shuffle(T3SolveItems);
 		Item result = null;
 		for (Class<?extends Item> itemCls : T3SolveItems){
@@ -513,6 +515,7 @@ public class VaultLevel extends CityLevel {
 	};
 
 	public Item findT2SolveItem(){
+		CoopLevelGen.stableOrder(T2SolveItems); // COOP: same start order every time
 		Random.shuffle(T2SolveItems);
 		Item result = null;
 		for (Class<?extends Item> itemCls : T2SolveItems){

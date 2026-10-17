@@ -21,6 +21,7 @@
 
 package com.shatteredpixel.shatteredpixeldungeon.levels.rooms.secret;
 
+import com.shatteredpixel.shatteredpixeldungeon.coop.levelgen.CoopLevelGen;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.Scroll;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfIdentify;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfLullaby;
@@ -86,7 +87,7 @@ public class SecretLibraryRoom extends SecretRoom {
 		entrance.set( Door.Type.HIDDEN );
 		
 		int n = Random.IntRange( 2, 3 );
-		HashMap<Class<? extends Scroll>, Float> chances = new HashMap<>(scrollChances);
+		HashMap<Class<? extends Scroll>, Float> chances = CoopLevelGen.stable( new HashMap<>(scrollChances) ); // COOP: stable order
 		for (int i=0; i < n; i++) {
 			int pos;
 			do {

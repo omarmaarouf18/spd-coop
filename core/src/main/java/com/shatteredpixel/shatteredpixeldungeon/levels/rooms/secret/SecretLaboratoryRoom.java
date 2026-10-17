@@ -23,6 +23,7 @@ package com.shatteredpixel.shatteredpixeldungeon.levels.rooms.secret;
 
 import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.Alchemy;
 import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.Blob;
+import com.shatteredpixel.shatteredpixeldungeon.coop.levelgen.CoopLevelGen;
 import com.shatteredpixel.shatteredpixeldungeon.items.EnergyCrystal;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.Potion;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfExperience;
@@ -88,7 +89,7 @@ public class SecretLaboratoryRoom extends SecretRoom {
 		level.drop( new EnergyCrystal().quantity(Random.IntRange(3, 5)), pos );
 
 		int n = Random.IntRange( 2, 3 );
-		HashMap<Class<? extends Potion>, Float> chances = new HashMap<>(potionChances);
+		HashMap<Class<? extends Potion>, Float> chances = CoopLevelGen.stable( new HashMap<>(potionChances) ); // COOP: stable order
 		for (int i=0; i < n; i++) {
 			do {
 				pos = level.pointToCell(random());

@@ -28,6 +28,7 @@ import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.GamesInProgress;
 import com.shatteredpixel.shatteredpixeldungeon.ShatteredPixelDungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
+import com.shatteredpixel.shatteredpixeldungeon.coop.levelgen.CoopLevelGen;
 import com.shatteredpixel.shatteredpixeldungeon.coop.ui.WndCoop;
 import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
@@ -78,12 +79,13 @@ public final class Coop {
 		}
 	}
 
-	//Dungeon.newLevel(): replaces level.create()
+	//Dungeon.newLevel(): replaces level.create(). Co-op floors depend only on seed+depth+branch
+	// (coop/levelgen, D-019), with a neutral player profile (CoopProfile).
 	public static void generate( Level level ) {
 		if (run == null) {
 			level.create();
 		} else {
-			CoopProfile.generate( level );
+			run.levelGen = CoopLevelGen.generate( level, run.levelGen, () -> CoopProfile.generate( level ) );
 		}
 	}
 

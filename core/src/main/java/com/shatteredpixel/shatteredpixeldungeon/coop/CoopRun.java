@@ -47,6 +47,10 @@ public class CoopRun implements Bundlable {
 	public String epoch = "";
 	public long ack;
 
+	//co-op level-gen state (DET-01, coop/levelgen): advanced only by level generation, so floors
+	// generated after a save/load continue exactly as without it. null until the first floor.
+	public Bundle levelGen;
+
 	private static final String RUN_ID = "coop_run_id";
 	private static final String SEED = "coop_seed";
 	private static final String ROLE_SEED = "coop_role_seed";
@@ -59,6 +63,7 @@ public class CoopRun implements Bundlable {
 	private static final String TOKEN = "coop_token";
 	private static final String EPOCH = "coop_epoch";
 	private static final String ACK = "coop_ack";
+	private static final String LEVEL_GEN = "coop_levelgen";
 
 	@Override
 	public void storeInBundle( Bundle bundle ) {
@@ -74,6 +79,7 @@ public class CoopRun implements Bundlable {
 		bundle.put( TOKEN, resumeToken );
 		bundle.put( EPOCH, epoch );
 		bundle.put( ACK, ack );
+		if (levelGen != null) bundle.put( LEVEL_GEN, levelGen );
 	}
 
 	@Override
@@ -90,6 +96,7 @@ public class CoopRun implements Bundlable {
 		resumeToken = bundle.getString( TOKEN );
 		epoch = bundle.getString( EPOCH );
 		ack = bundle.getLong( ACK );
+		levelGen = bundle.contains( LEVEL_GEN ) ? bundle.getBundle( LEVEL_GEN ) : null;
 	}
 
 	//"" in the bundle means "none" for the protocol
