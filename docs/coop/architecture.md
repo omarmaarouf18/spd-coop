@@ -97,29 +97,34 @@ Hooks in upstream files (each marked `// COOP:`). The expected list, to keep min
 | `MARK{cell, kind}` | no | pings |
 | `QUICK{phraseId}` | yes | quick messages |
 
-### 3.4 Shared state (server-authoritative) — reserved names, not in v1
+### 3.4 Shared state (server-authoritative) — in v1 since PRO-02
 
-These names are reserved in PROTOCOL.md §5.4 (a v1 server answers `ERROR{UNKNOWN_TYPE}`). They get specified when their mechanics land.
+The full payload spec is PROTOCOL.md §5.6–§5.10; this is the map. Every request is floor-scoped (`depth`+`branch` envelope) and everything gates on the persisted co-op run flag, never on socket state.
 
 | Request (C→S) | Event (S→both) | Notes |
 |---|---|---|
-| `MISSION_TRIGGER{roomId}` | `MISSION_START{missionId, type, roles, deadline, seed}` | server owns the clock |
-| `TASK_DONE{missionId, task}` | `MISSION_UPDATE{...}` | |
-| `GIVE{itemNetId, toCell}` | `TRANSFER{itemNetId, from, to}` / `DENY` | exactly-once, no dupes |
-| `DOWNED{}` | `ALLY_DOWNED{deadline}` | |
-| `USE_RECALL{}` | `REVIVE{target, mode}` | |
-| — | `MISSION_END{result, penalty?, reward?}` | result: success / revived / failed |
-| `SYNC_DRINK{snapshot}` | `SYNC_START{snapshot, turns}` / `DENY` | drinker → ally world |
-| `SYNC_VIEW{turn, terrainDiff, entities[]}` (ally) | relayed to drinker | Remote View puppets; Projection-FOV only |
-| `SYNC_CMD{turn, action, cell}` (drinker) | relayed to ally | stale `turn` dropped; 5 s timeout → wait |
-| `SYNC_REPORT{hpLost, reason}` (ally) | `SYNC_END{hpLost, reason}` | drinker applies hpLost |
-| `COOP_ROOM_ACT{roomId, action}` | `COOP_ROOM_STATE{roomId, state}` | plates, runes, totems |
+| `MISSION_TRIGGER{kind:"CELL", trapCell, roomId}` | `MISSION_START{missionId, prisoner, rescuer, keySeed, startsAt, deadline, waveIntervalMs, …}` | server owns the clock; `DENY{mission_active/ally_offline/ally_other_floor}` |
+| `GIVE{itemNetId, kind, item?, toCell?}` | `TRANSFER{itemNetId, from, to, kind, item?}` / `DENY` | exactly-once, no dupes; `cell_key` GIVE completes the mission key task |
+| `CLAIM{itemNetId}` / `CLAIMS_REQ{depth,branch}` | `CLAIMED{itemNetId, by}` / `CLAIMS{depth, branch, itemNetIds[]}` / `DENY{taken}` | shared floor loot, first claim wins (D-021 §6A.1) |
+| `DROP_SHARE{cell, itemNetId, item}` | relayed + registered | same-floor trade (D-021 §6A.2) |
+| `DOWNED{cause?}` | `ALLY_DOWNED{player, deadline}` | 30 s window (config), server frozen while either player is away |
+| `USE_RECALL{target, via:"recall"\|"healing"}` | `REVIVE{target, mode, hpPct:25}` / `DENY` | `recall` = region start (§5.2), `healing` = same floor, in place (D-021) |
+| — | `MISSION_END{result, penalty?, reward?}`, `DOWNED_EXPIRED{player}` | expiry = real vanilla death path, never a free revive |
+| `SYNC_DRINK{snapshot, turns}` | `SYNC_START{syncId, snapshot, turns}` / `DENY` | drinker → ally world |
+| `SYNC_VIEW{turn, terrainDiff, entities[]}` (ally) | relayed to drinker | Remote View; ≤ 10 frames/s, stale-stateless |
+| `SYNC_CMD{turn, action, cell?}` (drinker) | relayed to ally | stale `turn` dropped by the ally's client |
+| `SYNC_REPORT{syncId, hpLost, reason}` (ally) | `SYNC_END{syncId, hpLost, reason}` | drinker applies hpLost |
+| `BOSS_ENGAGE{bossId, ht}` / `BOSS_HIT{bossId, dmg}` | `BOSS_HP{bossId, hp, ht}` / `BOSS_DEAD{bossId}` | one pool × `COOP_BOSS_HP_SCALE` while both are on the floor (D-021) |
+| `TWIN_ACT{objectId, kind, cell, active, groupId?}` | `TWIN_DONE{groupId}` | both presses inside `COOP_TWIN_WINDOW` (default 2 s) |
+| `TERRAIN{cell, tile}` | relayed to ally | door tiles only (5/6/9), same floor only (D-021) |
+
+Still reserved in v1 (PROTOCOL.md §5.4): `TASK_DONE`, `COOP_ROOM_ACT`, `COOP_ROOM_STATE` (co-op room puzzles, ROOM-01).
 
 ### 3.5 Item network IDs
 Items that can cross worlds (keys, shrine items, Recall) get a stable `itemNetId`:
 - seeded items: `depth:branch:genIndex` (assigned by co-op level gen, `CoopItemIds`, identical on both clients; DET-01);
 - runtime items: `playerId:counter`.
-The server keeps `itemNetId → owner` and rejects double transfers.
+The server keeps `itemNetId → owner` per run (persisted, SRV-02) and rejects double claims/transfers.
 
 ## 4. Server (Go)
 

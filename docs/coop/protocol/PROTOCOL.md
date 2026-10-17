@@ -31,8 +31,8 @@ Every message, in both directions:
 | `t` | string | REQUIRED, a c2s type (§5) | REQUIRED, an s2c type (§5) |
 | `seq` | int ≥ 1 | REQUIRED (§2.1) | REQUIRED (§2.1) |
 | `ack` | int ≥ 0 | OPTIONAL (§2.1) | OPTIONAL (§2.1) |
-| `from` | playerId | OPTIONAL and **ignored**: the server overwrites it when relaying | REQUIRED on relayed `GHOST`/`MARK`/`QUICK`, absent otherwise |
-| `depth` | int 1..30 | REQUIRED on `GHOST`, `MARK`; OPTIONAL on `QUICK`; MUST be absent on every other type | same rule, copied from the sender when relaying |
+| `from` | playerId | OPTIONAL and **ignored**: the server overwrites it when relaying | REQUIRED on relayed types (§5.3, and `DROP_SHARE` §5.7, `SYNC_VIEW`/`SYNC_CMD` §5.9, `TERRAIN` §5.10), absent otherwise |
+| `depth` | int 1..30 | REQUIRED on every floor-scoped type (§5.3, §5.6 `MISSION_TRIGGER`, §5.7, §5.8, §5.9, §5.10 c2s types); OPTIONAL on `QUICK`; MUST be absent on every other type | REQUIRED on relayed types (copied from the sender), FORBIDDEN on server-authored s2c (§5.5) |
 | `branch` | int 0..9 | REQUIRED together with `depth` (both or neither) | same |
 | `p` | object | REQUIRED, the typed payload (`{}` when the type has no fields) | REQUIRED |
 
@@ -42,6 +42,7 @@ Every message, in both directions:
 
 - **c2s `seq`** counts the client's messages **on the current connection**: the first message (`HELLO`) has `seq` 1, and each following message has a strictly larger `seq` (normally +1). A non-increasing `seq` is answered with `ERROR{BAD_MESSAGE}` and the message is not processed.
 - **s2c `seq`** counts the server's messages **to this player within the server's `epoch`** (the `epoch` is a random id the server picks at start-up and reports in `WELCOME`). It keeps increasing across reconnects as long as the epoch is the same, so the client can say what it last saw.
+- Messages sent **before** a connection's first `WELCOME` (`REJECT`, and an `ERROR` on a bad first `HELLO`) are numbered **per connection from 1**. The per-epoch counter starts with `WELCOME`; only the `WELCOME`'s `seq` and later are meaningful for resume (`ack`), and everything before it is best-effort.
 - **c2s `ack`** is the highest s2c `seq` the client has received in the current epoch. The server only reads it on `HELLO` with a resume token (§7). On other messages it is optional and informational.
 - **s2c `ack`** is the c2s `seq` of the last message the server processed on this connection. It SHOULD be set on direct replies (`WELCOME`, `PONG`, `ERROR`, and the `ROOM_STATE` answering the player's own request).
 
@@ -61,6 +62,20 @@ Every message, in both directions:
 | cell | int 0..65535 (a `Level` cell index, `x + y * width`) |
 | time | int, Unix epoch milliseconds |
 | msg (free text) | string, at most 256 chars |
+| missionId, syncId | 16 lowercase hex chars `^[0-9a-f]{16}$` (like epoch, server-minted CSPRNG) |
+| itemNetId | `"<pool>:<n>"`: a two-part id, both parts decimal without a leading zero. `pool` is the DET-01 floor index (`1..255`) for level-gen loot, or 16 lowercase hex chars (a playerId) for runtime-minted items (shared drops, handed items). `n` is `1..9999999999`. Regex: `^(?:(?:[1-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|[0-9a-f]{16}):(?:(?:[1-9][0-9]{0,9}))$` |
+| objectId, roomId | int 1..(2^53−1), a content-defined id minted by co-op level gen (DET-01); stable in both worlds |
+| entityId | int 1..(2^53−1), a StableActor id (§5.9) |
+| tile | int 0..255 (an SPD `Terrain` value) |
+| opaque | string, at most 16384 UTF-8 bytes; carried verbatim (the server never parses it) |
+| mission kind | `"CELL"` |
+| mission result | `"success"` \| `"revived"` \| `"failed"` \| `"aborted"` |
+| revive mode | `"inPlace"` \| `"regionStart"` |
+| revive method | `"recall"` \| `"healing"` |
+| sync action | `"move"` \| `"attack"` \| `"wait"` |
+| report reason | `"expired"` \| `"died"` \| `"interrupted"` |
+| item kind | `"cell_key"` \| `"item"` |
+| twin kind | `"door"` \| `"switch"` |
 
 ## 4. Errors
 
@@ -139,13 +154,103 @@ The receiver ignores `GHOST`/`MARK` for another floor except to update the ally 
 
 ### 5.4 Reserved type names (not implemented in v1)
 
-`MISSION_TRIGGER`, `MISSION_START`, `TASK_DONE`, `MISSION_UPDATE`, `MISSION_END`, `GIVE`, `TRANSFER`, `DENY`, `DOWNED`, `ALLY_DOWNED`, `USE_RECALL`, `REVIVE`, `SYNC_DRINK`, `SYNC_START`, `SYNC_VIEW`, `SYNC_CMD`, `SYNC_REPORT`, `SYNC_END`, `COOP_ROOM_ACT`, `COOP_ROOM_STATE` (architecture §3.4).
+`TASK_DONE`, `COOP_ROOM_ACT`, `COOP_ROOM_STATE` (architecture §3.4).
 A v1 server answers any of them, like any other unknown type, with `ERROR{UNKNOWN_TYPE}`. A v1 client ignores unknown s2c types.
+
+**Within `v: 1`, the type list only grows additively and the reserved list only shrinks.** A reserved name that becomes a defined type stays defined (that is how PRO-02 turned the PRO-01 reserved list into §5.6–§5.10), and new optional s2c fields may appear (§5.5). A decoder must therefore only treat names as: known c2s, known s2c, reserved-c2s, reserved-s2c, and unknown — never in terms of "released in patch X".
 
 ### 5.5 Unknown fields
 
 - **c2s:** the server rejects unknown fields, in the envelope and in payloads (`ERROR{BAD_MESSAGE}`, or `REJECT` for `HELLO`). This catches client bugs (typos) early.
 - **s2c:** the client MUST ignore unknown fields. This lets the server add optional fields within v1 without breaking released clients. It MUST still reject wrong types and out-of-range values of known fields.
+
+### 5.6 Missions and The Cell
+
+The server is authoritative for mission state: at most one active mission per run (D-020). It learns each player's current floor from that connection's last floor-scoped message (§5.3 and the `depth`+`branch` envelopes in this section); it never simulates levels. Denials use `DENY` (§5.7): `ally_offline`, `ally_other_floor` (mission trigger needs the ally online on the trigger's floor), `mission_active`.
+
+| `t` | Dir | Envelope | Payload | Reliable |
+|---|---|---|---|---|
+| `MISSION_TRIGGER` | c2s | `depth`+`branch` REQUIRED | `kind` mission kind (REQUIRED, `"CELL"`), `trapCell` cell (REQUIRED), `roomId` objectId (REQUIRED) | — |
+| `MISSION_START` | s2c | floor FORBIDDEN | `missionId` (REQUIRED), `kind` mission kind (REQUIRED), `prisoner` playerId (REQUIRED), `rescuer` playerId (REQUIRED), `depth` int 1..30 (REQUIRED), `branch` int 0..9 (REQUIRED), `trapCell` cell (REQUIRED), `roomId` objectId (REQUIRED), `keySeed` int 0..2^53−1 (REQUIRED), `startsAt` time (REQUIRED), `deadline` time (REQUIRED), `waveIntervalMs` int ≥ 1 (REQUIRED) | yes |
+| `MISSION_UPDATE` | s2c | floor FORBIDDEN | `missionId` (REQUIRED), `paused` bool (REQUIRED), `remainingMs` int ≥ 0 (REQUIRED), `tasks` object `{ "key": bool }` (OPTIONAL; known task flags when changed) | yes |
+| `MISSION_END` | s2c | floor FORBIDDEN | `missionId` (REQUIRED), `result` mission result (REQUIRED), `penalty` object (REQUIRED with result `"failed"`, forbidden otherwise), `reward` object (REQUIRED with result `"success"`, forbidden otherwise) | yes |
+
+- `prisoner` and `rescuer` MUST be the two players of the run and different. For a `"CELL"` mission the `depth`/`branch` payload fields are the mission floor (both clients validate against their own floor).
+- `penalty` = `{ "regionStartDepth": int 1..30, "goldPct": int 0..100 }`. `reward` = `{ "rewardSeed": int 0..2^53−1 }` — both clients roll deterministically from it.
+- Result `success` → `reward`; `failed` → `penalty`; `revived` (the prisoner was revived mid-mission and the mission wound down) and `aborted` (server-side teardown without penalty) carry neither.
+- `deadline` = `startsAt` + the mission's hard cap (for `"CELL"`: 4 min + 15 s × `regionIndex`, server config). The **server** judges the cap and failures; waves are client pacing ("the prisoner's client spawns waves every `waveIntervalMs`" — MEC-01) and knock the prisoner Downed when their window lapses (`DOWNED` §5.8), which is what makes failure server-visible.
+
+### 5.7 Shared items
+
+Every shared `itemNetId` has **exactly one owner** per run, recorded server-side and persisted with the run (SRV-02, store migration v3). Three flows, all gated on the co-op run flag (D-021):
+
+- **Claim (floor loot, game-design §6A.1):** level-gen items form one shared pool per floor. The first `CLAIM` wins and is broadcast to both players; a later claim of the same id gets `DENY{taken}`, re-claiming your own is silently ignored. A claimed item vanishes from the ally's world (immediately if they are on that floor, otherwise it is absent when they arrive — ask with `CLAIMS_REQ`).
+- **Give (hand to the ally):** `GIVE` hands one item over, same floor or across floors (Item Shrine, §7). `TRANSFER` announces it to both. The first `GIVE` of an unseen id mints ownership; the same id again is `DENY{already_transferred}` (owned by you) or `DENY{not_owner}` (owned by the other player).
+- **Drop (same-floor trade, §6A.2):** `DROP_SHARE` relays a dropped item to the ally on the same floor and registers it as claimable-once; the ally picks it up with `CLAIM`. Items consumed on impact are never sent.
+
+| `t` | Dir | Envelope | Payload | Reliable |
+|---|---|---|---|---|
+| `CLAIM` | c2s | `depth`+`branch` REQUIRED | `itemNetId` (REQUIRED) | — |
+| `CLAIMED` | s2c | floor FORBIDDEN | `itemNetId` (REQUIRED), `by` playerId (REQUIRED) | yes |
+| `CLAIMS_REQ` | c2s | floor FORBIDDEN | `depth` int 1..30 (REQUIRED), `branch` int 0..9 (REQUIRED) | — |
+| `CLAIMS` | s2c | floor FORBIDDEN | `depth` int 1..30 (REQUIRED), `branch` int 0..9 (REQUIRED), `itemNetIds` array of itemNetId, at most 256 (REQUIRED) | no |
+| `GIVE` | c2s | `depth`+`branch` REQUIRED | `itemNetId` (REQUIRED), `kind` item kind (REQUIRED), `item` opaque (REQUIRED with kind `"item"`, forbidden with `"cell_key"`), `toCell` cell (OPTIONAL, landing cell in the ally's world) | — |
+| `TRANSFER` | s2c | floor FORBIDDEN | `itemNetId` (REQUIRED), `from` playerId (REQUIRED), `to` playerId (REQUIRED), `kind` item kind (REQUIRED), `item` opaque (REQUIRED with kind `"item"`, absent otherwise) | yes |
+| `DROP_SHARE` | both | `depth`+`branch` REQUIRED | `cell` cell (REQUIRED), `itemNetId` (REQUIRED), `item` opaque (REQUIRED) | yes |
+| `DENY` | s2c | floor FORBIDDEN | `reason` (REQUIRED, closed list below) | no |
+
+`DENY.reason` closed list: `ally_offline`, `ally_other_floor`, `mission_active`, `invalid_state`, `not_owner`, `already_transferred`, `taken`, `no_pool`, `sync_active`, `downed`, `not_downed`. Meanings: `ally_offline` — the request needs the ally connected; `ally_other_floor` — it needs the ally on the sender's floor; `mission_active` — only one mission at a time; `invalid_state` — other contradictions (e.g. a `GIVE{kind:"cell_key"}` with no active Cell mission); `no_pool` — a `BOSS_HIT` with no shared pool (§5.10); `downed` — the sender is Downed; `not_downed` — the target is not Downed.
+
+A `GIVE{kind:"cell_key"}` completes the mission's key task: the server answers with `TRANSFER` **and** `MISSION_UPDATE{tasks:{key:true}}` (§5.6).
+
+### 5.8 Downed and revive
+
+| `t` | Dir | Envelope | Payload | Reliable |
+|---|---|---|---|---|
+| `DOWNED` | c2s | `depth`+`branch` REQUIRED | `cause` string, at most 64 chars (OPTIONAL, free label for the ally's UI) | — |
+| `ALLY_DOWNED` | s2c | floor FORBIDDEN | `player` playerId (REQUIRED), `deadline` time (REQUIRED) | yes |
+| `USE_RECALL` | c2s | `depth`+`branch` REQUIRED | `target` playerId (REQUIRED), `via` revive method (REQUIRED) | — |
+| `REVIVE` | s2c | floor FORBIDDEN | `target` playerId (REQUIRED), `mode` revive mode (REQUIRED), `hpPct` int 0..100 (REQUIRED) | yes |
+| `DOWNED_EXPIRED` | s2c | floor FORBIDDEN | `player` playerId (REQUIRED) | yes |
+
+- When a hero would die in a co-op run, the client sends `DOWNED`; the server starts the Downed window (`COOP_DOWNED_WINDOW`, default 30 s, frozen while either player is disconnected) and answers `ALLY_DOWNED{deadline}` to both players. Repeat `DOWNED` while already Downed is silently ignored (the window is not reset). The ally may `USE_RECALL`; revives are `REVIVE{hpPct:25}` (game-design §5.2–§5.3): `via:"recall"` — any floor, `mode:"regionStart"`; `via:"healing"` — sender's floor must equal the target's floor (`DENY ally_other_floor`), `mode:"inPlace"`. Sender Downed → `DENY{downed}`, target not Downed → `DENY{not_downed}`.
+- When the window expires the server sends `DOWNED_EXPIRED` to both and runs no game logic itself: the expired player's client plays the **real vanilla death path** (never a free revive) and the server records the player as out for the rest of the run (MEC-02, SRV-02). If the expired player was a mission prisoner, the server also sends `MISSION_END{failed, penalty}` (§5.6).
+- Death outside a mission (expiry of a plain `DOWNED`) ends the run for that player only; the ally continues (single switch: `COOP_DEATH_MODE=player_out`, the default and only v1 mode — architecture §4).
+
+### 5.9 Super Sync (Remote View)
+
+The server relays the combat session between the two players and never simulates combat: all battle math lives in the ally's world (the host). The drinker sends the session's `snapshot`; the host streams `SYNC_VIEW{turn,…}`; the drinker steers with `SYNC_CMD` (stale `turn`s are dropped by the **host's** client); the host ends the session with `SYNC_REPORT` → `SYNC_END` to both (game-design §6). At most one session per run (`DENY sync_active`); the drinker must not be Downed (`DENY downed`). Either player disconnecting tears the session down: `SYNC_END{hpLost:0, reason:"interrupted"}` to both (D-005 pause in SRV-02).
+
+| `t` | Dir | Envelope | Payload | Reliable |
+|---|---|---|---|---|
+| `SYNC_DRINK` | c2s | `depth`+`branch` REQUIRED | `snapshot` opaque (REQUIRED), `turns` int ≥ 1 (REQUIRED, the session's turn budget) | — |
+| `SYNC_START` | s2c | floor FORBIDDEN | `syncId` (REQUIRED), `snapshot` opaque (REQUIRED), `turns` int ≥ 1 (REQUIRED) | yes |
+| `SYNC_VIEW` | both | `depth`+`branch` REQUIRED | `syncId` (REQUIRED), `turn` int ≥ 1 (REQUIRED), `terrainDiff` array of `[cell, tile]` pairs, both values int 0..65535, at most 512 pairs (REQUIRED), `entities` array of SyncEntity, at most 64 (REQUIRED) | no |
+| `SYNC_CMD` | both | `depth`+`branch` REQUIRED | `syncId` (REQUIRED), `turn` int ≥ 1 (REQUIRED), `action` sync action (REQUIRED), `cell` (REQUIRED with action `"move"`/`"attack"`, forbidden with `"wait"`) | no |
+| `SYNC_REPORT` | c2s | `depth`+`branch` REQUIRED | `syncId` (REQUIRED), `hpLost` int ≥ 0 (REQUIRED), `reason` report reason (REQUIRED) | — |
+| `SYNC_END` | s2c | floor FORBIDDEN | `syncId` (REQUIRED), `hpLost` int ≥ 0 (REQUIRED), `reason` report reason (REQUIRED) | yes |
+
+SyncEntity = `{ "id": entityId, "kind": string, at most 32 chars, "cell": cell, "hpPct": int 0..100 }` — all four REQUIRED; `kind` is an opaque rendering label (`"hero"`, `"projection"`, or the mob class's simple name). `terrainDiff` pairs are flat two-element arrays, `[i]` = cell, `[i+1]` = tile; the drinker applies them to its own copy of the ally's floor.
+
+The server rejects `SYNC_VIEW`/`SYNC_CMD` for a floor neither player is on, and drops `SYNC_CMD`/`SYNC_REPORT`/`SYNC_VIEW` for an unknown `syncId` silently (session teardown already reported them).
+
+### 5.10 Shared boss HP, twin doors and terrain mirroring
+
+- **Shared boss HP (§6A.3):** the first `BOSS_ENGAGE{bossId, ht}` for a floor defines the boss's `ht`. The server holds **one** HP pool for a boss while both players are on that floor: `pool = round(ht × COOP_BOSS_HP_SCALE)` (config, default `1.8`). Ally not on the floor → **no pool** (`BOSS_HIT` gets `DENY{no_pool}`; the fight is per-world). Every accepted `BOSS_HIT` broadcasts the new pool; pool `0` → `BOSS_DEAD` to both, and further hits/engages for that `bossId` are silently ignored. Both worlds drive phases and death from the broadcast pool.
+- **Twin windows (§6A.4–§6A.5):** presses pair server-side within `COOP_TWIN_WINDOW` (config, default 2 s). A **door** succeeds when both players press the **same** `objectId` inside the window; **switches** when both press **different** `objectIds` of the same `groupId`. The window opens with the first press; the matching press (same floor, inside the window) completes it → `TWIN_DONE{groupId}` to both (for a door, `groupId` is the door's `objectId`). Presses after a completed group are no-ops; rooms retry until then (§7).
+- **Terrain mirroring (§6A.6):** door tiles only. The server relays `TERRAIN` to the ally on the same floor; tiles outside the door whitelist are silently dropped (logged): `DOOR = 5`, `OPEN_DOOR = 6`, and `EMBERS = 9` (a burned-through door) — SPD v4.0.2 `Terrain` values; other terrain stays per-world.
+
+| `t` | Dir | Envelope | Payload | Reliable |
+|---|---|---|---|---|
+| `BOSS_ENGAGE` | c2s | `depth`+`branch` REQUIRED | `bossId` int 1..2^53−1 (REQUIRED, content-defined by level gen), `ht` int ≥ 1 (REQUIRED) | — |
+| `BOSS_HIT` | c2s | `depth`+`branch` REQUIRED | `bossId` int 1..2^53−1 (REQUIRED), `dmg` int ≥ 1 (REQUIRED) | — |
+| `BOSS_HP` | s2c | floor FORBIDDEN | `bossId` int 1..2^53−1 (REQUIRED), `hp` int ≥ 0 (REQUIRED), `ht` int ≥ 1 (REQUIRED) | yes |
+| `BOSS_DEAD` | s2c | floor FORBIDDEN | `bossId` int 1..2^53−1 (REQUIRED) | yes |
+| `TWIN_ACT` | c2s | `depth`+`branch` REQUIRED | `objectId` objectId (REQUIRED), `kind` twin kind (REQUIRED), `cell` (REQUIRED), `active` bool (REQUIRED), `groupId` objectId (REQUIRED with kind `"switch"`, forbidden with kind `"door"`) | — |
+| `TWIN_DONE` | s2c | floor FORBIDDEN | `groupId` int 1..2^53−1 (REQUIRED) | yes |
+| `TERRAIN` | both | `depth`+`branch` REQUIRED | `cell` cell (REQUIRED), `tile` tile (REQUIRED) | no |
+
+Floor gating trusts the `depth`+`branch` envelope (same as presence, §5.3): both worlds are seeded identically, so only real movement in the simulated run can place a player on a floor they are not on.
 
 ## 6. Connection state machine
 
@@ -164,6 +269,7 @@ new ──HELLO ok──▶ ready ──ROOM_CREATE / ROOM_JOIN──▶ in_lobb
 | `ROOM_LEAVE` | INVALID_STATE | NOT_IN_ROOM | ✓ | INVALID_STATE |
 | `READY` | INVALID_STATE | NOT_IN_ROOM | ✓ | INVALID_STATE |
 | `GHOST`, `MARK`, `QUICK` | INVALID_STATE | NOT_IN_ROOM | INVALID_STATE | ✓ |
+| `MISSION_TRIGGER`, `DOWNED`, `USE_RECALL`, `CLAIM`, `CLAIMS_REQ`, `GIVE`, `DROP_SHARE`, `SYNC_DRINK`, `SYNC_REPORT`, `BOSS_ENGAGE`, `BOSS_HIT`, `TWIN_ACT`, `TERRAIN` | INVALID_STATE | NOT_IN_ROOM | INVALID_STATE | ✓ |
 
 - An illegal message gets an `ERROR` and is not processed. **The connection stays open.**
 - A connection that sends no valid `HELLO` within 10 s is closed (status `4002`).
@@ -177,7 +283,8 @@ new ──HELLO ok──▶ ready ──ROOM_CREATE / ROOM_JOIN──▶ in_lobb
 2. Unknown or malformed token → `REJECT{RESUME_FAILED}` and close.
 3. If the player has another open connection, that one gets `ERROR{SESSION_REPLACED}` and is closed (`4003`). The newest connection wins.
 4. The server answers `WELCOME{resumed:true, room, run?}` with the current snapshot. Then:
-   - **same epoch:** it replays every reliable event (`ROOM_STATE`, `RUN_START`, `ALLY_STATUS`) for this player with `seq > ack`, in order, **with their original `seq`** (so they are lower than the `WELCOME`'s `seq`). `replayed` says how many follow, and `complete: true`. If the log (the last 256 events per room) no longer holds all of them, nothing is replayed and `complete: false`.
+   - **same epoch:** it replays every reliable event for this player with `seq > ack`, in order, **with their original `seq`** (so they are lower than the `WELCOME`'s `seq`). `replayed` says how many follow, and `complete: true`. If the log (the last 256 events per room) no longer holds all of them, nothing is replayed and `complete: false`.
+     The reliable set is: `ROOM_STATE`, `RUN_START`, `ALLY_STATUS` (§5.2); `MISSION_START`, `MISSION_UPDATE`, `MISSION_END` (§5.6); `CLAIMED`, `TRANSFER`, `DROP_SHARE` (§5.7); `ALLY_DOWNED`, `REVIVE`, `DOWNED_EXPIRED` (§5.8); `SYNC_START`, `SYNC_END` (§5.9); `BOSS_HP`, `BOSS_DEAD`, `TWIN_DONE` (§5.10). Replaying the last `MISSION_UPDATE`/`ALLY_STATUS` gives a resumed client the paused state without extra machinery.
    - **other epoch** (the server restarted): no replay, `replayed: 0`, `complete: false`. The snapshot is the truth. The client resets its `ack` baseline to the new epoch.
 5. The ally receives `ALLY_STATUS{connected:true}`. When a player disconnects, the ally receives `ALLY_STATUS{connected:false, lastSeen}`.
 6. After a server restart, a player of a `running` run is put back into it on resume. The ally shows as `connected:false` until it also resumes.
@@ -194,6 +301,7 @@ new ──HELLO ok──▶ ready ──ROOM_CREATE / ROOM_JOIN──▶ in_lobb
 ## 9. Limits and heartbeat
 
 - **Rate limit** per connection: token bucket, 30 messages/s, burst 60. A message over the limit is dropped and answered with `ERROR{RATE_LIMITED}` (at most one such error per second). If the client stays over the limit for 5 s, the server closes with status `1008` (policy violation).
+- **`SYNC_VIEW` cap:** in addition to the bucket, at most 10 `SYNC_VIEW` frames per second from one sender; frames over the cap are dropped **silently** (combat streaming is high-rate and best-effort, so it must not consume the error channel).
 - **Heartbeat:** the client sends `PING` every 10 s. The server closes a connection that has sent nothing for 30 s (status `4002`). The client SHOULD treat 30 s without any server message (a `PONG` at least) as a dead connection and reconnect with resume.
 - **Strings:** every string field has the format or the length limit in §3.
 
@@ -223,6 +331,10 @@ A → READY{heroClass:"WARRIOR", ready:true}    A,B ← ROOM_STATE
 B → READY{heroClass:"MAGE", ready:true}       A,B ← RUN_START{runId, seed, roleSeed, players}  then ROOM_STATE{phase:"running"}
 A → {"v":1,"t":"GHOST","seq":5,"depth":1,"branch":0,"p":{"pos":345,"anim":"run","hpPct":100,"heroClass":"WARRIOR","tier":0}}
 B ← {"v":1,"t":"GHOST","seq":7,"from":"a1…","depth":1,"branch":0,"p":{…same…}}
+A → {"v":1,"t":"CLAIM","seq":6,"depth":1,"branch":0,"p":{"itemNetId":"1:42"}}
+A ← {"v":1,"t":"CLAIMED","seq":9,"ack":6,"p":{"itemNetId":"1:42","by":"a1…"}}    B ← (same CLAIMED)
+A → {"v":1,"t":"MISSION_TRIGGER","seq":7,"depth":3,"branch":0,"p":{"kind":"CELL","trapCell":1207,"roomId":7}}
+A,B ← MISSION_START{missionId:"b1…",kind:"CELL",prisoner:"b1…",rescuer:"a1…",depth:3,branch:0,trapCell:1207,roomId:7,keySeed:…,startsAt:…,deadline:…,waveIntervalMs:30000}
 ```
 
 ## 11. Fixtures (the contract)
