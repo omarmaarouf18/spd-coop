@@ -1,0 +1,81 @@
+# deploy/docker-compose.prod.yml — production stack (SRV-00, architecture §4.3).
+#
+# REFERENCE FILE: build-and-publish.yml copies it to the spd-coop-deploy repo
+# as docker-compose.yml and replaces the literal ":IMAGE_TAG" with the commit
+# SHA. Never edit the deploy repo by hand (D-015).
+#
+# Runs on the VPS from the deploy repo checkout, where .env is a symlink to
+# /home/deploybot/.env (DOMAIN, LOG_LEVEL, ALLOWED_VERSIONS; see .env.example).
+
+name: spd-coop
+
+services:
+  server:
+    image: ghcr.io/omarmaarouf18/spd-coop-server:IMAGE_TAG
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "8080"
+      DB_PATH: /data/coop.db
+    # No host ports: only caddy reaches it, over the backend network.
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - server_data:/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "/server", "-healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN must be set in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - backend
+      - edge
+    depends_on:
+      server:
+        condition: service_healthy
+    mem_limit: 128m
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+networks:
+  # Private: the server has no route to the outside world.
+  backend:
+    internal: true
+  # Caddy's way out (ACME certificates) and in (ports 80/443).
+  edge: {}
+
+# Pinned names: running compose from another directory must never create a
+# new, empty volume.
+volumes:
+  server_data:
+    name: spd-coop_server_data
+  caddy_data:
+    name: spd-coop_caddy_data
+  caddy_config:
+    name: spd-coop_caddy_config

@@ -1,0 +1,14 @@
+# deploy/Caddyfile — TLS termination and reverse proxy (SRV-00).
+# DOMAIN comes from .env (compose passes it to the caddy container).
+# Only /ws (websocket, proxied transparently) and /healthz reach the server;
+# everything else is 404.
+
+{$DOMAIN} {
+	@server path /ws /healthz
+	handle @server {
+		reverse_proxy server:8080
+	}
+	handle {
+		respond 404
+	}
+}

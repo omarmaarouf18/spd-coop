@@ -1,0 +1,146 @@
+# deploy/deploy.yml — continuous deployment on the VPS (SRV-00, D-015).
+#
+# REFERENCE COPY: build-and-publish.yml in the main repo syncs this file to
+# spd-coop-deploy/.github/workflows/deploy.yml. Edit it here, never in the
+# deploy repo.
+#
+# Runs on the self-hosted runner on the VPS (user deploybot) for every push
+# to the deploy repo's main branch:
+#   checkout -> .env symlink -> compose config -> pre-flight `-check-env`
+#   -> save current tags -> pull -> up -> health (internal + external)
+#   -> on health failure: roll back to HEAD~1's docker-compose.yml, re-verify
+#   -> on any failure: log dump
+# A pre-flight failure stops BEFORE any running container is touched.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Never run two deploys at once, and never cancel one half-way.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to the VPS
+    runs-on: [self-hosted, spd-coop-vps]
+    timeout-minutes: 20
+    env:
+      CANONICAL_ENV: /home/deploybot/.env
+      HEALTH_RETRIES: "12"
+      HEALTH_DELAY: "5"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          clean: false
+          fetch-depth: 2
+
+      # /home/deploybot/.env is the only real .env; the workspace one is a
+      # symlink, so a re-clone can never lose or fork the config.
+      - name: Link .env to the canonical file
+        run: |
+          if [ ! -f "$CANONICAL_ENV" ]; then
+            echo "::error::$CANONICAL_ENV is missing. Create it from .env.example (mode 600) on the VPS."
+            exit 1
+          fi
+          if [ -e .env ] && [ ! -L .env ]; then
+            echo "Removing a stale workspace .env that is not a symlink"
+            rm -f .env
+          fi
+          ln -sfn "$CANONICAL_ENV" .env
+          echo "workspace .env -> $CANONICAL_ENV"
+
+      - name: Validate docker-compose.yml
+        run: docker compose config --quiet
+
+      - name: Pre-flight config check
+        run: |
+          image="$(docker compose config --images server)"
+          if [ -z "$image" ]; then
+            echo "::error::could not read the server image from docker-compose.yml"
+            exit 1
+          fi
+          echo "pre-flight: $image -check-env"
+          if ! docker run --rm --pull=missing --env-file .env "$image" -check-env; then
+            echo "::error::PRE-FLIGHT FAILED: the running containers were NOT touched. Fix $CANONICAL_ENV and re-run."
+            exit 1
+          fi
+
+      - name: Save current image tags
+        run: |
+          docker compose ps -q | xargs -r docker inspect --format '{{.Name}} {{.Config.Image}}' \
+            > "$RUNNER_TEMP/previous-images.txt" || true
+          if [ -s "$RUNNER_TEMP/previous-images.txt" ]; then
+            cat "$RUNNER_TEMP/previous-images.txt"
+          else
+            echo "no running containers (first deployment)"
+          fi
+
+      - name: Pull images
+        run: docker compose pull
+
+      - name: Start containers
+        run: |
+          docker compose up -d --remove-orphans
+          docker compose ps
+
+      - name: Health check
+        id: health
+        run: |
+          verify() {
+            local i ok=0
+            for i in $(seq 1 "$HEALTH_RETRIES"); do
+              if docker compose exec -T server /server -healthcheck; then ok=1; break; fi
+              echo "internal health attempt $i/$HEALTH_RETRIES failed, retrying in ${HEALTH_DELAY}s"
+              sleep "$HEALTH_DELAY"
+            done
+            [ "$ok" -eq 1 ] || { echo "::error::internal health check failed"; return 1; }
+            echo "internal health OK"
+
+            local domain
+            domain="$(sed -n 's/^DOMAIN=//p' .env | tail -n 1 | tr -d "\"' \r")"
+            [ -n "$domain" ] || { echo "::error::DOMAIN is not set in .env"; return 1; }
+            ok=0
+            for i in $(seq 1 "$HEALTH_RETRIES"); do
+              if curl -fsS --max-time 10 "https://$domain/healthz"; then echo; ok=1; break; fi
+              echo "external health attempt $i/$HEALTH_RETRIES (https://$domain/healthz) failed, retrying in ${HEALTH_DELAY}s"
+              sleep "$HEALTH_DELAY"
+            done
+            [ "$ok" -eq 1 ] || { echo "::error::external health check https://$domain/healthz failed"; return 1; }
+            echo "external health OK"
+          }
+          declare -f verify > "$RUNNER_TEMP/verify.sh"
+          verify
+
+      - name: Roll back to the previous docker-compose.yml
+        if: failure() && steps.health.outcome == 'failure'
+        run: |
+          echo "ROLLBACK: restoring docker-compose.yml from HEAD~1"
+          if ! git cat-file -e HEAD~1:docker-compose.yml 2>/dev/null; then
+            echo "::error::no previous docker-compose.yml in history; manual intervention required"
+            exit 1
+          fi
+          git checkout HEAD~1 -- docker-compose.yml
+          docker compose up -d --remove-orphans
+          docker compose ps
+          # shellcheck disable=SC1091 # written by the health step
+          . "$RUNNER_TEMP/verify.sh"
+          if ! verify; then
+            echo "::error::ROLLBACK FAILED its health check too: the service is down, manual intervention required"
+            exit 1
+          fi
+          echo "ROLLED BACK: the previous release is healthy again. Images before this deploy:"
+          cat "$RUNNER_TEMP/previous-images.txt" 2>/dev/null || echo "(not recorded)"
+
+      - name: Log dump on failure
+        if: failure()
+        run: |
+          docker compose ps || true
+          docker compose logs --tail=100 || true

@@ -1,0 +1,4 @@
+# The real .env is a symlink to /home/deploybot/.env on the VPS; never commit it.
+.env
+.env.*
+!.env.example

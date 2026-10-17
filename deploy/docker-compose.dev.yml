@@ -1,0 +1,35 @@
+# deploy/docker-compose.dev.yml — local server (SRV-00). No TLS, no caddy.
+#
+#   make server-dev     (= docker compose -f deploy/docker-compose.dev.yml up --build)
+#   curl -s localhost:8080/healthz
+
+name: spd-coop-dev
+
+services:
+  server:
+    build:
+      context: ../server
+      args:
+        VERSION: dev
+    image: spd-coop-server:dev
+    environment:
+      PORT: "8080"
+      DB_PATH: /data/coop.db
+      LOG_LEVEL: debug
+    ports:
+      - "8080:8080"
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - server_data:/data
+    healthcheck:
+      test: ["CMD", "/server", "-healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  server_data:
+    name: spd-coop-dev_server_data

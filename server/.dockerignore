@@ -1,0 +1,7 @@
+# Only the Go sources are needed in the build context.
+bin/
+*.db
+*.db-*
+.env*
+Dockerfile
+.dockerignore
