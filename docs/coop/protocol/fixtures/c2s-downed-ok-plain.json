@@ -1,0 +1,13 @@
+{
+  "name": "c2s-downed-ok-plain",
+  "direction": "c2s",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "DOWNED",
+    "seq": 22,
+    "depth": 4,
+    "branch": 0,
+    "p": {}
+  }
+}

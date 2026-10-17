@@ -1,0 +1,18 @@
+{
+  "name": "c2s-terrain-tile-256",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "out_of_range",
+  "field": "p.tile",
+  "message": {
+    "v": 1,
+    "t": "TERRAIN",
+    "seq": 71,
+    "depth": 1,
+    "branch": 0,
+    "p": {
+      "cell": 208,
+      "tile": 256
+    }
+  }
+}

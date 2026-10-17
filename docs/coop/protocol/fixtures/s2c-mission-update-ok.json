@@ -1,0 +1,19 @@
+{
+  "name": "s2c-mission-update-ok",
+  "direction": "s2c",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "MISSION_UPDATE",
+    "seq": 24,
+    "ack": 12,
+    "p": {
+      "missionId": "0fedcba987654321",
+      "paused": false,
+      "remainingMs": 118000,
+      "tasks": {
+        "key": false
+      }
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "s2c-drop-share-from-missing",
+  "direction": "s2c",
+  "valid": false,
+  "reason": "missing_field",
+  "field": "from",
+  "message": {
+    "v": 1,
+    "t": "DROP_SHARE",
+    "seq": 44,
+    "depth": 2,
+    "branch": 0,
+    "p": {
+      "cell": 345,
+      "itemNetId": "0123456789abcdef:7",
+      "item": "v1testyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+    }
+  }
+}

@@ -25,6 +25,7 @@ package com.shatteredpixel.shatteredpixeldungeon.coop.net;
 
 import com.shatteredpixel.shatteredpixeldungeon.coop.net.ProtocolJson.Num;
 
+import java.nio.charset.StandardCharsets;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -44,6 +45,8 @@ public final class Protocol {
 	public static final long MAX_SAFE_INT = (1L << 53) - 1;
 	//SPD DungeonSeed.TOTAL_SEEDS, 26^9
 	public static final long MAX_SEED_EXCLUSIVE = 5429503678976L;
+	//byte limit of every opaque string field (§3)
+	public static final int MAX_OPAQUE = 16384;
 	public static final String ROOM_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
 	public enum Direction {
@@ -67,6 +70,43 @@ public final class Protocol {
 	public static final String GHOST = "GHOST";
 	public static final String MARK = "MARK";
 	public static final String QUICK = "QUICK";
+	//missions and The Cell (§5.6)
+	public static final String MISSION_TRIGGER = "MISSION_TRIGGER";
+	public static final String MISSION_START = "MISSION_START";
+	public static final String MISSION_UPDATE = "MISSION_UPDATE";
+	public static final String MISSION_END = "MISSION_END";
+	//shared items (§5.7)
+	public static final String CLAIM = "CLAIM";
+	public static final String CLAIMED = "CLAIMED";
+	public static final String CLAIMS_REQ = "CLAIMS_REQ";
+	public static final String CLAIMS = "CLAIMS";
+	public static final String GIVE = "GIVE";
+	public static final String TRANSFER = "TRANSFER";
+	public static final String DROP_SHARE = "DROP_SHARE";
+	public static final String DENY = "DENY";
+	//downed and revive (§5.8)
+	public static final String DOWNED = "DOWNED";
+	public static final String ALLY_DOWNED = "ALLY_DOWNED";
+	public static final String USE_RECALL = "USE_RECALL";
+	public static final String REVIVE = "REVIVE";
+	public static final String DOWNED_EXPIRED = "DOWNED_EXPIRED";
+	//Super Sync (§5.9)
+	public static final String SYNC_DRINK = "SYNC_DRINK";
+	public static final String SYNC_START = "SYNC_START";
+	public static final String SYNC_VIEW = "SYNC_VIEW";
+	public static final String SYNC_CMD = "SYNC_CMD";
+	public static final String SYNC_REPORT = "SYNC_REPORT";
+	public static final String SYNC_END = "SYNC_END";
+	//shared boss HP, twin doors, terrain mirroring (§5.10)
+	public static final String BOSS_ENGAGE = "BOSS_ENGAGE";
+	public static final String BOSS_HIT = "BOSS_HIT";
+	public static final String BOSS_HP = "BOSS_HP";
+	public static final String BOSS_DEAD = "BOSS_DEAD";
+	public static final String TWIN_ACT = "TWIN_ACT";
+	public static final String TWIN_DONE = "TWIN_DONE";
+	public static final String TERRAIN = "TERRAIN";
+	//reserved for later versions (§5.4); within v1 the list only shrinks
+	public static final List<String> RESERVED = Arrays.asList( "TASK_DONE", "COOP_ROOM_ACT", "COOP_ROOM_STATE" );
 
 	// error / reject codes (§4.3)
 	public static final String BAD_MESSAGE = "BAD_MESSAGE";
@@ -87,6 +127,25 @@ public final class Protocol {
 	public static final List<String> ANIMS = Arrays.asList( "idle", "run", "attack", "operate", "zap", "die" );
 	public static final List<String> MARK_KINDS = Arrays.asList( "HERE", "DANGER", "ITEM", "GO" );
 	public static final List<String> PHASES = Arrays.asList( "lobby", "running" );
+	//co-op gameplay value sets (§5.6–§5.10)
+	public static final List<String> MISSION_KINDS = Arrays.asList( "CELL" );
+	public static final List<String> MISSION_RESULTS = Arrays.asList( "success", "revived", "failed", "aborted" );
+	public static final List<String> REVIVE_MODES = Arrays.asList( "inPlace", "regionStart" );
+	public static final List<String> REVIVE_METHODS = Arrays.asList( "recall", "healing" );
+	public static final List<String> SYNC_ACTIONS = Arrays.asList( "move", "attack", "wait" );
+	public static final List<String> REPORT_REASONS = Arrays.asList( "expired", "died", "interrupted" );
+	public static final List<String> ITEM_KINDS = Arrays.asList( "cell_key", "item" );
+	public static final List<String> TWIN_KINDS = Arrays.asList( "door", "switch" );
+	//DENY.reason closed list (§5.7)
+	public static final List<String> DENY_REASONS = Arrays.asList( "ally_offline", "ally_other_floor", "mission_active",
+			"invalid_state", "not_owner", "already_transferred", "taken", "no_pool", "sync_active", "downed", "not_downed" );
+	//door tiles the server relays (§5.10); SPD v4.0.2 Terrain values
+	public static final int TILE_DOOR = 5;      //Terrain.DOOR
+	public static final int TILE_OPEN_DOOR = 6; //Terrain.OPEN_DOOR
+	public static final int TILE_EMBERS = 9;    //Terrain.EMBERS, the burned-through (broken) door
+	public static boolean isDoorTile( int tile ) {
+		return tile == TILE_DOOR || tile == TILE_OPEN_DOOR || tile == TILE_EMBERS;
+	}
 	private static final List<String> REJECT_CODES = Arrays.asList( BAD_MESSAGE, VERSION_MISMATCH, RESUME_FAILED );
 	private static final List<String> ERROR_CODES = Arrays.asList( BAD_MESSAGE, UNKNOWN_TYPE, INVALID_STATE, NOT_IN_ROOM,
 			ALREADY_IN_ROOM, ROOM_NOT_FOUND, ROOM_FULL, RATE_LIMITED, SESSION_REPLACED, INTERNAL );
@@ -106,11 +165,38 @@ public final class Protocol {
 	private Protocol() {}
 
 	public static boolean reliable( String t ) {
-		return ROOM_STATE.equals( t ) || RUN_START.equals( t ) || ALLY_STATUS.equals( t );
+		switch (t) {
+			case ROOM_STATE: case RUN_START: case ALLY_STATUS:
+			case MISSION_START: case MISSION_UPDATE: case MISSION_END:
+			case CLAIMED: case TRANSFER: case DROP_SHARE:
+			case ALLY_DOWNED: case REVIVE: case DOWNED_EXPIRED:
+			case SYNC_START: case SYNC_END:
+			case BOSS_HP: case BOSS_DEAD: case TWIN_DONE:
+				return true;
+			default:
+				return false;
+		}
 	}
 
 	public static boolean presence( String t ) {
 		return GHOST.equals( t ) || MARK.equals( t ) || QUICK.equals( t );
+	}
+
+	//relayed types (§5.3, §5.7, §5.9, §5.10): `from` and the floor copied from the sender
+	public static boolean relayed( String t ) {
+		return presence( t ) || DROP_SHARE.equals( t ) || SYNC_VIEW.equals( t ) || SYNC_CMD.equals( t ) || TERRAIN.equals( t );
+	}
+
+	//s2c messages Listener.onServerEvent receives: every relayed type and every
+	// server-authored gameplay broadcast (§5.6–§5.10)
+	public static boolean event( String t ) {
+		return relayed( t )
+				|| MISSION_START.equals( t ) || MISSION_UPDATE.equals( t ) || MISSION_END.equals( t )
+				|| CLAIMED.equals( t ) || CLAIMS.equals( t )
+				|| TRANSFER.equals( t ) || DENY.equals( t )
+				|| ALLY_DOWNED.equals( t ) || REVIVE.equals( t ) || DOWNED_EXPIRED.equals( t )
+				|| SYNC_START.equals( t ) || SYNC_END.equals( t )
+				|| BOSS_HP.equals( t ) || BOSS_DEAD.equals( t ) || TWIN_DONE.equals( t );
 	}
 
 	//one decoded or outgoing message. Optional envelope fields are null when absent.
@@ -262,6 +348,8 @@ public final class Protocol {
 	private static final Pattern HEX_ID = Pattern.compile( "^[0-9a-f]{16}$" );
 	private static final Pattern TOKEN = Pattern.compile( "^[A-Za-z0-9_-]{43}$" );
 	private static final Pattern ROOM_CODE = Pattern.compile( "^[" + ROOM_CODE_ALPHABET + "]{6}$" );
+	//"<pool>:<n>" (§3): pool 1..255 or a playerId, n 1..9999999999, no leading zeros
+	private static final Pattern ITEM_NET_ID = Pattern.compile( "^(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]?|[0-9a-f]{16}):[1-9][0-9]{0,9}$" );
 
 	private static Check formatted( final Pattern re, final String what ) {
 		return new Check() {
@@ -276,6 +364,44 @@ public final class Protocol {
 	private static final Check hexId = formatted( HEX_ID, "16 lowercase hex chars" );
 	private static final Check token = formatted( TOKEN, "43 base64url chars" );
 	private static final Check roomCode = formatted( ROOM_CODE, "6 chars from " + ROOM_CODE_ALPHABET );
+	private static final Check itemNetId = formatted( ITEM_NET_ID,
+			"\"<pool>:<n>\" (floor index 1..255 or a playerId, then 1..9999999999)" );
+
+	//opaque string field: at most MAX_OPAQUE bytes (§3)
+	private static final Check opaque = new Check() {
+		@Override
+		public void apply( Validator v, String path, Object x ) {
+			String s = v.str( path, x );
+			if (s != null && s.getBytes( StandardCharsets.UTF_8 ).length > MAX_OPAQUE) {
+				v.fail( KIND_TOO_LONG, path, "at most " + MAX_OPAQUE + " bytes" );
+			}
+		}
+	};
+
+	//flat [cell, tile, cell, tile, …] array (§5.9)
+	private static Check pairList( final int maxPairs, final long lo, final long hi ) {
+		return new Check() {
+			@Override
+			public void apply( Validator v, String path, Object x ) {
+				if (!(x instanceof List)) {
+					v.fail( KIND_WRONG_TYPE, path, "must be an array" );
+					return;
+				}
+				List<?> arr = (List<?>) x;
+				if (arr.size() > 2 * maxPairs) {
+					v.fail( KIND_OUT_OF_RANGE, path, "at most " + maxPairs + " pairs, has " + arr.size() );
+					return;
+				}
+				if (arr.size() % 2 != 0) {
+					v.fail( KIND_WRONG_TYPE, path, "must hold complete [cell, tile] pairs, got " + arr.size() + " values" );
+					return;
+				}
+				for (int i = 0; i < arr.size(); i++) {
+					intRange( lo, hi ).apply( v, join( path, Integer.toString( i ) ), arr.get( i ) );
+				}
+			}
+		};
+	}
 
 	private static Check intRange( final long lo, final long hi ) {
 		return new Check() {
@@ -373,6 +499,49 @@ public final class Protocol {
 		};
 	}
 
+	//combines cross-checks, keeping the first failure
+	private static CrossCheck chain( final CrossCheck... checks ) {
+		return new CrossCheck() {
+			@Override
+			public void apply( Validator v, String path, Map<String, Object> obj ) {
+				for (CrossCheck c : checks) {
+					if (v.err != null) return;
+					c.apply( v, path, obj );
+				}
+			}
+		};
+	}
+
+	//dep is required when trigger is one of when, and forbidden otherwise
+	//(e.g. GIVE.item when kind == "item")
+	private static CrossCheck valueDep( final String trigger, final String dep, final List<String> when ) {
+		return new CrossCheck() {
+			@Override
+			public void apply( Validator v, String path, Map<String, Object> obj ) {
+				Object val = obj.get( trigger );
+				boolean needs = val instanceof String && when.contains( val );
+				boolean has = obj.containsKey( dep );
+				if (needs && !has) {
+					v.fail( KIND_MISSING_FIELD, join( path, dep ), "required with " + trigger + " \"" + val + "\"" );
+				} else if (!needs && has) {
+					v.fail( KIND_FORBIDDEN_FIELD, join( path, dep ),
+							"forbidden unless " + trigger + " is one of " + when );
+				}
+			}
+		};
+	}
+
+	//a mission is addressed to two different players (§5.6)
+	private static final CrossCheck prisonersDiffer = new CrossCheck() {
+		@Override
+		public void apply( Validator v, String path, Map<String, Object> obj ) {
+			Object prisoner = obj.get( "prisoner" ), rescuer = obj.get( "rescuer" );
+			if (prisoner instanceof String && prisoner.equals( rescuer )) {
+				v.fail( KIND_BAD_FORMAT, join( path, "rescuer" ), "prisoner and rescuer must be different players" );
+			}
+		}
+	};
+
 	private static final CrossCheck epochNeedsToken = new CrossCheck() {
 		@Override
 		public void apply( Validator v, String path, Map<String, Object> obj ) {
@@ -406,6 +575,19 @@ public final class Protocol {
 			new Field( "seed", true, intRange( 0, MAX_SEED_EXCLUSIVE - 1 ) ),
 			new Field( "roleSeed", true, intRange( 0, MAX_SAFE_INT ) ),
 			new Field( "players", true, array( 2, 2, object( RUN_PLAYER ) ) ) );
+
+	private static final ObjSchema MISSION_PENALTY = new ObjSchema( null,
+			new Field( "regionStartDepth", true, intRange( 1, 30 ) ),
+			new Field( "goldPct", true, intRange( 0, 100 ) ) );
+
+	private static final ObjSchema MISSION_REWARD = new ObjSchema( null,
+			new Field( "rewardSeed", true, intRange( 0, MAX_SAFE_INT ) ) );
+
+	private static final ObjSchema SYNC_ENTITY = new ObjSchema( null,
+			new Field( "id", true, intRange( 1, MAX_SAFE_INT ) ),
+			new Field( "kind", true, text( 32 ) ),
+			new Field( "cell", true, intRange( 0, 65535 ) ),
+			new Field( "hpPct", true, intRange( 0, 100 ) ) );
 
 	private static final long INT32 = (1L << 31) - 1;
 
@@ -465,6 +647,132 @@ public final class Protocol {
 				new Field( "kind", true, enumOf( MARK_KINDS ) ) ) ) );
 		SPECS.put( QUICK, new TypeSpec( true, true, Floor.OPTIONAL, new ObjSchema( null,
 				new Field( "phraseId", true, intRange( 0, 63 ) ) ) ) );
+		// ---- missions (§5.6) ----
+		SPECS.put( MISSION_TRIGGER, new TypeSpec( true, false, Floor.REQUIRED, new ObjSchema( null,
+				new Field( "kind", true, enumOf( MISSION_KINDS ) ),
+				new Field( "trapCell", true, intRange( 0, 65535 ) ),
+				new Field( "roomId", true, intRange( 1, MAX_SAFE_INT ) ) ) ) );
+		SPECS.put( MISSION_START, new TypeSpec( false, true, Floor.FORBIDDEN, new ObjSchema( prisonersDiffer,
+				new Field( "missionId", true, hexId ),
+				new Field( "kind", true, enumOf( MISSION_KINDS ) ),
+				new Field( "prisoner", true, hexId ),
+				new Field( "rescuer", true, hexId ),
+				new Field( "depth", true, intRange( 1, 30 ) ),
+				new Field( "branch", true, intRange( 0, 9 ) ),
+				new Field( "trapCell", true, intRange( 0, 65535 ) ),
+				new Field( "roomId", true, intRange( 1, MAX_SAFE_INT ) ),
+				new Field( "keySeed", true, intRange( 0, MAX_SAFE_INT ) ),
+				new Field( "startsAt", true, intRange( 0, MAX_SAFE_INT ) ),
+				new Field( "deadline", true, intRange( 0, MAX_SAFE_INT ) ),
+				new Field( "waveIntervalMs", true, intRange( 1, MAX_SAFE_INT ) ) ) ) );
+		SPECS.put( MISSION_UPDATE, new TypeSpec( false, true, Floor.FORBIDDEN, new ObjSchema( null,
+				new Field( "missionId", true, hexId ),
+				new Field( "paused", true, bool ),
+				new Field( "remainingMs", true, intRange( 0, MAX_SAFE_INT ) ),
+				new Field( "tasks", false, object( new ObjSchema( null,
+						new Field( "key", false, bool ) ) ) ) ) ) );
+		SPECS.put( MISSION_END, new TypeSpec( false, true, Floor.FORBIDDEN, new ObjSchema( chain(
+				valueDep( "result", "penalty", Arrays.asList( "failed" ) ),
+				valueDep( "result", "reward", Arrays.asList( "success" ) ) ),
+				new Field( "missionId", true, hexId ),
+				new Field( "result", true, enumOf( MISSION_RESULTS ) ),
+				new Field( "penalty", false, object( MISSION_PENALTY ) ),
+				new Field( "reward", false, object( MISSION_REWARD ) ) ) ) );
+		// ---- shared items (§5.7) ----
+		SPECS.put( CLAIM, new TypeSpec( true, false, Floor.REQUIRED, new ObjSchema( null,
+				new Field( "itemNetId", true, itemNetId ) ) ) );
+		SPECS.put( CLAIMED, new TypeSpec( false, true, Floor.FORBIDDEN, new ObjSchema( null,
+				new Field( "itemNetId", true, itemNetId ),
+				new Field( "by", true, hexId ) ) ) );
+		SPECS.put( CLAIMS_REQ, new TypeSpec( true, false, Floor.FORBIDDEN, new ObjSchema( null,
+				new Field( "depth", true, intRange( 1, 30 ) ),
+				new Field( "branch", true, intRange( 0, 9 ) ) ) ) );
+		SPECS.put( CLAIMS, new TypeSpec( false, true, Floor.FORBIDDEN, new ObjSchema( null,
+				new Field( "depth", true, intRange( 1, 30 ) ),
+				new Field( "branch", true, intRange( 0, 9 ) ),
+				new Field( "itemNetIds", true, array( 0, 256, itemNetId ) ) ) ) );
+		SPECS.put( GIVE, new TypeSpec( true, false, Floor.REQUIRED, new ObjSchema( valueDep( "kind", "item", Arrays.asList( "item" ) ),
+				new Field( "itemNetId", true, itemNetId ),
+				new Field( "kind", true, enumOf( ITEM_KINDS ) ),
+				new Field( "item", false, opaque ),
+				new Field( "toCell", false, intRange( 0, 65535 ) ) ) ) );
+		SPECS.put( TRANSFER, new TypeSpec( false, true, Floor.FORBIDDEN, new ObjSchema( valueDep( "kind", "item", Arrays.asList( "item" ) ),
+				new Field( "itemNetId", true, itemNetId ),
+				new Field( "from", true, hexId ),
+				new Field( "to", true, hexId ),
+				new Field( "kind", true, enumOf( ITEM_KINDS ) ),
+				new Field( "item", false, opaque ) ) ) );
+		SPECS.put( DROP_SHARE, new TypeSpec( true, true, Floor.REQUIRED, new ObjSchema( null,
+				new Field( "cell", true, intRange( 0, 65535 ) ),
+				new Field( "itemNetId", true, itemNetId ),
+				new Field( "item", true, opaque ) ) ) );
+		SPECS.put( DENY, new TypeSpec( false, true, Floor.FORBIDDEN, new ObjSchema( null,
+				new Field( "reason", true, enumOf( DENY_REASONS ) ) ) ) );
+		// ---- downed and revive (§5.8) ----
+		SPECS.put( DOWNED, new TypeSpec( true, false, Floor.REQUIRED, new ObjSchema( null,
+				new Field( "cause", false, text( 64 ) ) ) ) );
+		SPECS.put( ALLY_DOWNED, new TypeSpec( false, true, Floor.FORBIDDEN, new ObjSchema( null,
+				new Field( "player", true, hexId ),
+				new Field( "deadline", true, intRange( 0, MAX_SAFE_INT ) ) ) ) );
+		SPECS.put( USE_RECALL, new TypeSpec( true, false, Floor.REQUIRED, new ObjSchema( null,
+				new Field( "target", true, hexId ),
+				new Field( "via", true, enumOf( REVIVE_METHODS ) ) ) ) );
+		SPECS.put( REVIVE, new TypeSpec( false, true, Floor.FORBIDDEN, new ObjSchema( null,
+				new Field( "target", true, hexId ),
+				new Field( "mode", true, enumOf( REVIVE_MODES ) ),
+				new Field( "hpPct", true, intRange( 0, 100 ) ) ) ) );
+		SPECS.put( DOWNED_EXPIRED, new TypeSpec( false, true, Floor.FORBIDDEN, new ObjSchema( null,
+				new Field( "player", true, hexId ) ) ) );
+		// ---- Super Sync (§5.9) ----
+		SPECS.put( SYNC_DRINK, new TypeSpec( true, false, Floor.REQUIRED, new ObjSchema( null,
+				new Field( "snapshot", true, opaque ),
+				new Field( "turns", true, intRange( 1, MAX_SAFE_INT ) ) ) ) );
+		SPECS.put( SYNC_START, new TypeSpec( false, true, Floor.FORBIDDEN, new ObjSchema( null,
+				new Field( "syncId", true, hexId ),
+				new Field( "snapshot", true, opaque ),
+				new Field( "turns", true, intRange( 1, MAX_SAFE_INT ) ) ) ) );
+		SPECS.put( SYNC_VIEW, new TypeSpec( true, true, Floor.REQUIRED, new ObjSchema( null,
+				new Field( "syncId", true, hexId ),
+				new Field( "turn", true, intRange( 1, MAX_SAFE_INT ) ),
+				new Field( "terrainDiff", true, pairList( 512, 0, 65535 ) ),
+				new Field( "entities", true, array( 0, 64, object( SYNC_ENTITY ) ) ) ) ) );
+		SPECS.put( SYNC_CMD, new TypeSpec( true, true, Floor.REQUIRED, new ObjSchema( valueDep( "action", "cell", Arrays.asList( "move", "attack" ) ),
+				new Field( "syncId", true, hexId ),
+				new Field( "turn", true, intRange( 1, MAX_SAFE_INT ) ),
+				new Field( "action", true, enumOf( SYNC_ACTIONS ) ),
+				new Field( "cell", false, intRange( 0, 65535 ) ) ) ) );
+		SPECS.put( SYNC_REPORT, new TypeSpec( true, false, Floor.REQUIRED, new ObjSchema( null,
+				new Field( "syncId", true, hexId ),
+				new Field( "hpLost", true, intRange( 0, MAX_SAFE_INT ) ),
+				new Field( "reason", true, enumOf( REPORT_REASONS ) ) ) ) );
+		SPECS.put( SYNC_END, new TypeSpec( false, true, Floor.FORBIDDEN, new ObjSchema( null,
+				new Field( "syncId", true, hexId ),
+				new Field( "hpLost", true, intRange( 0, MAX_SAFE_INT ) ),
+				new Field( "reason", true, enumOf( REPORT_REASONS ) ) ) ) );
+		// ---- shared boss HP, twin doors, terrain (§5.10) ----
+		SPECS.put( BOSS_ENGAGE, new TypeSpec( true, false, Floor.REQUIRED, new ObjSchema( null,
+				new Field( "bossId", true, intRange( 1, MAX_SAFE_INT ) ),
+				new Field( "ht", true, intRange( 1, MAX_SAFE_INT ) ) ) ) );
+		SPECS.put( BOSS_HIT, new TypeSpec( true, false, Floor.REQUIRED, new ObjSchema( null,
+				new Field( "bossId", true, intRange( 1, MAX_SAFE_INT ) ),
+				new Field( "dmg", true, intRange( 1, MAX_SAFE_INT ) ) ) ) );
+		SPECS.put( BOSS_HP, new TypeSpec( false, true, Floor.FORBIDDEN, new ObjSchema( null,
+				new Field( "bossId", true, intRange( 1, MAX_SAFE_INT ) ),
+				new Field( "hp", true, intRange( 0, MAX_SAFE_INT ) ),
+				new Field( "ht", true, intRange( 1, MAX_SAFE_INT ) ) ) ) );
+		SPECS.put( BOSS_DEAD, new TypeSpec( false, true, Floor.FORBIDDEN, new ObjSchema( null,
+				new Field( "bossId", true, intRange( 1, MAX_SAFE_INT ) ) ) ) );
+		SPECS.put( TWIN_ACT, new TypeSpec( true, false, Floor.REQUIRED, new ObjSchema( valueDep( "kind", "groupId", Arrays.asList( "switch" ) ),
+				new Field( "objectId", true, intRange( 1, MAX_SAFE_INT ) ),
+				new Field( "kind", true, enumOf( TWIN_KINDS ) ),
+				new Field( "cell", true, intRange( 0, 65535 ) ),
+				new Field( "active", true, bool ),
+				new Field( "groupId", false, intRange( 1, MAX_SAFE_INT ) ) ) ) );
+		SPECS.put( TWIN_DONE, new TypeSpec( false, true, Floor.FORBIDDEN, new ObjSchema( null,
+				new Field( "groupId", true, intRange( 1, MAX_SAFE_INT ) ) ) ) );
+		SPECS.put( TERRAIN, new TypeSpec( true, true, Floor.REQUIRED, new ObjSchema( null,
+				new Field( "cell", true, intRange( 0, 65535 ) ),
+				new Field( "tile", true, intRange( 0, 255 ) ) ) ) );
 	}
 
 	//every v1 type a decoder of this direction accepts
@@ -541,19 +849,19 @@ public final class Protocol {
 				if (n != null) m.ack = n;
 			}
 
-			//from: ignored on c2s (but must be a string); on s2c required exactly on relayed presence
+			//from: ignored on c2s (but must be a string); on s2c required exactly on relayed types
 			boolean hasFrom = root.containsKey( "from" );
 			Object rawFrom = root.get( "from" );
 			if (dir == Direction.C2S && hasFrom) {
 				if (rawFrom instanceof String) m.from = (String) rawFrom;
 				else fail( KIND_WRONG_TYPE, "from", "must be a string" );
-			} else if (dir == Direction.S2C && presence( t ) && !hasFrom) {
+			} else if (dir == Direction.S2C && relayed( t ) && !hasFrom) {
 				fail( KIND_MISSING_FIELD, "from", "required on relayed " + t );
-			} else if (dir == Direction.S2C && presence( t )) {
+			} else if (dir == Direction.S2C && relayed( t )) {
 				String s = str( "from", rawFrom );
 				if (s != null && match( "from", s, HEX_ID, "a 16-char lowercase hex playerId" )) m.from = s;
 			} else if (dir == Direction.S2C && hasFrom) {
-				fail( KIND_FORBIDDEN_FIELD, "from", "only relayed GHOST/MARK/QUICK carry from" );
+				fail( KIND_FORBIDDEN_FIELD, "from", "only relayed types (§5.3, §5.7, §5.9, §5.10) carry from" );
 			}
 
 			floor( root, spec.floor, t, m );

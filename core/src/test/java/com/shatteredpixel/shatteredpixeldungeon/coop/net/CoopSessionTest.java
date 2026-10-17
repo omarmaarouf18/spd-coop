@@ -259,11 +259,64 @@ class CoopSessionTest {
 	@Test
 	void unknownTypesAndFieldsFromTheServerAreIgnored() throws Exception {
 		welcomed();
-		session.onMessage( "{\"v\":1,\"t\":\"MISSION_START\",\"seq\":2,\"p\":{}}" );
+		//TASK_DONE stays reserved (§5.4)
+		session.onMessage( "{\"v\":1,\"t\":\"TASK_DONE\",\"seq\":2,\"p\":{}}" );
 		session.onMessage( "{\"v\":1,\"t\":\"ALLY_STATUS\",\"seq\":3,\"future\":1,\"p\":{\"playerId\":\"" + ALLY
 				+ "\",\"connected\":false,\"paused\":false,\"lastSeen\":5,\"extra\":true}}" );
 		assertTrue( rec.events.contains( "ally:" + ALLY + ":false" ) );
 		assertEquals( 3, session.ack() );
+	}
+
+	@Test
+	void gameplayBroadcastsReachOnServerEvent() throws Exception {
+		welcomed();
+		session.onMessage( "{\"v\":1,\"t\":\"MISSION_START\",\"seq\":2,\"p\":{\"missionId\":\"0fedcba987654321\",\"kind\":\"CELL\","
+				+ "\"prisoner\":\"" + PID + "\",\"rescuer\":\"" + ALLY + "\",\"depth\":3,\"branch\":0,\"trapCell\":1207,\"roomId\":7,"
+				+ "\"keySeed\":1,\"startsAt\":2,\"deadline\":3,\"waveIntervalMs\":30000}}" );
+		session.onMessage( "{\"v\":1,\"t\":\"CLAIMED\",\"seq\":3,\"p\":{\"itemNetId\":\"3:5\",\"by\":\"" + ALLY + "\"}}" );
+		session.onMessage( "{\"v\":1,\"t\":\"SYNC_VIEW\",\"seq\":4,\"from\":\"" + ALLY + "\",\"depth\":3,\"branch\":0,"
+				+ "\"p\":{\"syncId\":\"0aaaaaaaaaaaa001\",\"turn\":12,\"terrainDiff\":[],\"entities\":[]}}" );
+		assertTrue( rec.events.contains( "event:MISSION_START" ) );
+		assertTrue( rec.events.contains( "event:CLAIMED" ) );
+		assertTrue( rec.events.contains( "event:SYNC_VIEW" ) );
+	}
+
+	@Test
+	void gameplayRequestsAreValidC2SFrames() throws Exception {
+		welcomed();
+		assertTrue( session.missionTrigger( 3, 0, "CELL", 1207, 7 ) );
+		{
+			Message m = link.last();
+			assertEquals( Protocol.MISSION_TRIGGER, m.t );
+			assertEquals( Integer.valueOf( 3 ), m.depth );
+			assertEquals( "7", m.p.get( "roomId" ).toString() );
+		}
+
+		assertTrue( session.claimsReq( 3, 1 ) );
+		assertNull( link.last().depth, "CLAIMS_REQ carries the floor in its payload, not the envelope" );
+		assertEquals( "1", link.last().p.get( "branch" ).toString() );
+
+		assertTrue( session.give( 2, 0, "0123456789abcdef:1", "item", "blobish", null ) );
+		assertEquals( "item", link.last().p.get( "kind" ) );
+		assertTrue( session.give( 2, 0, "0123456789abcdef:2", "cell_key", null, 345 ) );
+		Message key = link.last();
+		assertFalse( key.p.containsKey( "item" ), "no blob with kind cell_key" );
+		assertEquals( "345", key.p.get( "toCell" ).toString() );
+
+		assertTrue( session.dropShare( 2, 0, 321, "0123456789abcdef:3", "blob" ) );
+		assertTrue( session.downed( 4, 0, "SPIDER" ) );
+		assertTrue( session.useRecall( 2, 0, ALLY, "healing" ) );
+		assertTrue( session.syncDrink( 4, 0, "snapshot-data", 200 ) );
+		assertTrue( session.syncView( 4, 0, "0aaaaaaaaaaaa001", 12, java.util.Arrays.asList( 340, 5 ), new ArrayList<>() ) );
+		assertTrue( session.syncCmd( 4, 0, "0aaaaaaaaaaaa001", 12, "move", 403 ) );
+		assertTrue( session.syncCmd( 4, 0, "0aaaaaaaaaaaa001", 13, "wait", null ) );
+		assertFalse( link.last().p.containsKey( "cell" ), "wait carries no cell" );
+		assertTrue( session.bossHit( 20, 0, 1, 12 ) );
+		assertTrue( session.twinAct( 9, 0, 11, "switch", 778, true, 4L ) );
+		assertTrue( session.twinAct( 9, 0, 3, "door", 610, true, null ) );
+		assertFalse( link.last().p.containsKey( "groupId" ) );
+		assertTrue( session.terrain( 1, 0, 208, Protocol.TILE_DOOR ) );
+		assertEquals( "5", link.last().p.get( "tile" ).toString() );
 	}
 
 	@Test
@@ -363,6 +416,11 @@ class CoopSessionTest {
 		@Override
 		public void onPresence( Message presence ) {
 			events.add( "presence:" + presence.t + ":" + presence.from );
+		}
+
+		@Override
+		public void onServerEvent( Message m ) {
+			events.add( "event:" + m.t );
 		}
 
 		@Override

@@ -1,0 +1,19 @@
+{
+  "name": "c2s-give-item-with-key",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "forbidden_field",
+  "field": "p.item",
+  "message": {
+    "v": 1,
+    "t": "GIVE",
+    "seq": 16,
+    "depth": 3,
+    "branch": 0,
+    "p": {
+      "itemNetId": "000000000000000a:2",
+      "kind": "cell_key",
+      "item": "v1testyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+    }
+  }
+}

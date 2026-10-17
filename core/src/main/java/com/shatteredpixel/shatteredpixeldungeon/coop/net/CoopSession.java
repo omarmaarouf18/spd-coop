@@ -30,6 +30,7 @@ import com.shatteredpixel.shatteredpixeldungeon.coop.net.Protocol.Message;
 import com.watabou.noosa.Game;
 import com.watabou.utils.DeviceCompat;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -74,6 +75,10 @@ public class CoopSession implements CoopClient.Listener {
 		void onAllyStatus( Message status );
 		//relayed GHOST / MARK / QUICK
 		void onPresence( Message presence );
+		//every remaining s2c type (Protocol.event): mission/item/downed/sync/boss/twin
+		// broadcasts and the relayed DROP_SHARE / SYNC_VIEW / SYNC_CMD / TERRAIN.
+		// The receiver ignores messages for a floor it is not on (AGENTS.md §3.6).
+		default void onServerEvent( Message m ) {}
 		//ERROR: the request failed, the connection stays open
 		void onServerError( String code, String msg );
 		//stopped for good: REJECT{VERSION_MISMATCH|BAD_MESSAGE} or ERROR{SESSION_REPLACED}
@@ -173,13 +178,108 @@ public class CoopSession implements CoopClient.Listener {
 		return send( m );
 	}
 
-	//depth/branch may be null (a QUICK isn't tied to a floor)
-	public boolean quick( int phraseId, Integer depth, Integer branch ) {
-		Message m = new Message( Protocol.QUICK ).put( "phraseId", phraseId );
-		m.depth = depth;
-		m.branch = depth == null ? null : branch;
-		return send( m );
-	}
+		//depth/branch may be null (a QUICK isn't tied to a floor)
+		public boolean quick( int phraseId, Integer depth, Integer branch ) {
+			Message m = new Message( Protocol.QUICK ).put( "phraseId", phraseId );
+			m.depth = depth;
+			m.branch = depth == null ? null : branch;
+			return send( m );
+		}
+
+		// ---- co-op gameplay requests (§5.6–§5.10), all floor-scoped ----
+
+		public boolean missionTrigger( int depth, int branch, String kind, int trapCell, long roomId ) {
+			return send( floor( depth, branch, new Message( Protocol.MISSION_TRIGGER ) )
+					.put( "kind", kind ).put( "trapCell", trapCell ).put( "roomId", roomId ) );
+		}
+
+		public boolean claim( int depth, int branch, String itemNetId ) {
+			return send( floor( depth, branch, new Message( Protocol.CLAIM ) ).put( "itemNetId", itemNetId ) );
+		}
+
+		//the payload names the floor; the envelope stays clean (§5.7)
+		public boolean claimsReq( int depth, int branch ) {
+			return send( new Message( Protocol.CLAIMS_REQ )
+					.put( "depth", depth ).put( "branch", branch ) );
+		}
+
+		//item is required with kind "item" and must be null with "cell_key"
+		public boolean give( int depth, int branch, String itemNetId, String kind, String item, Integer toCell ) {
+			Message m = floor( depth, branch, new Message( Protocol.GIVE ) )
+					.put( "itemNetId", itemNetId ).put( "kind", kind );
+			if (item != null) m.put( "item", item );
+			if (toCell != null) m.put( "toCell", toCell );
+			return send( m );
+		}
+
+		public boolean dropShare( int depth, int branch, int cell, String itemNetId, String item ) {
+			return send( floor( depth, branch, new Message( Protocol.DROP_SHARE ) )
+					.put( "cell", cell ).put( "itemNetId", itemNetId ).put( "item", item ) );
+		}
+
+		public boolean downed( int depth, int branch, String cause ) {
+			Message m = floor( depth, branch, new Message( Protocol.DOWNED ) );
+			if (cause != null) m.put( "cause", cause );
+			return send( m );
+		}
+
+		public boolean useRecall( int depth, int branch, String target, String via ) {
+			return send( floor( depth, branch, new Message( Protocol.USE_RECALL ) )
+					.put( "target", target ).put( "via", via ) );
+		}
+
+		public boolean syncDrink( int depth, int branch, String snapshot, long turns ) {
+			return send( floor( depth, branch, new Message( Protocol.SYNC_DRINK ) )
+					.put( "snapshot", snapshot ).put( "turns", turns ) );
+		}
+
+		public boolean syncView( int depth, int branch, String syncId, long turn, List<Integer> terrainDiff, List<Map<String, Object>> entities ) {
+			return send( floor( depth, branch, new Message( Protocol.SYNC_VIEW ) )
+					.put( "syncId", syncId ).put( "turn", turn )
+					.put( "terrainDiff", terrainDiff ).put( "entities", entities ) );
+		}
+
+		//cell is required with action move/attack and must be null with wait
+		public boolean syncCmd( int depth, int branch, String syncId, long turn, String action, Integer cell ) {
+			Message m = floor( depth, branch, new Message( Protocol.SYNC_CMD ) )
+					.put( "syncId", syncId ).put( "turn", turn ).put( "action", action );
+			if (cell != null) m.put( "cell", cell );
+			return send( m );
+		}
+
+		public boolean syncReport( int depth, int branch, String syncId, long hpLost, String reason ) {
+			return send( floor( depth, branch, new Message( Protocol.SYNC_REPORT ) )
+					.put( "syncId", syncId ).put( "hpLost", hpLost ).put( "reason", reason ) );
+		}
+
+		public boolean bossEngage( int depth, int branch, long bossId, long ht ) {
+			return send( floor( depth, branch, new Message( Protocol.BOSS_ENGAGE ) )
+					.put( "bossId", bossId ).put( "ht", ht ) );
+		}
+
+		public boolean bossHit( int depth, int branch, long bossId, long dmg ) {
+			return send( floor( depth, branch, new Message( Protocol.BOSS_HIT ) )
+					.put( "bossId", bossId ).put( "dmg", dmg ) );
+		}
+
+		//groupId is required with kind "switch" and must be null with "door"
+		public boolean twinAct( int depth, int branch, long objectId, String kind, int cell, boolean active, Long groupId ) {
+			Message m = floor( depth, branch, new Message( Protocol.TWIN_ACT ) )
+					.put( "objectId", objectId ).put( "kind", kind ).put( "cell", cell ).put( "active", active );
+			if (groupId != null) m.put( "groupId", groupId );
+			return send( m );
+		}
+
+		public boolean terrain( int depth, int branch, int cell, int tile ) {
+			return send( floor( depth, branch, new Message( Protocol.TERRAIN ) )
+					.put( "cell", cell ).put( "tile", tile ) );
+		}
+
+		private static Message floor( int depth, int branch, Message m ) {
+			m.depth = depth;
+			m.branch = branch;
+			return m;
+		}
 
 	public void stop() {
 		setState( State.STOPPED );
@@ -254,6 +354,8 @@ public class CoopSession implements CoopClient.Listener {
 			listener.onAllyStatus( m );
 		} else if (Protocol.presence( t )) {
 			listener.onPresence( m );
+		} else if (Protocol.event( t )) {
+			listener.onServerEvent( m );
 		} else if (Protocol.ERROR.equals( t )) {
 			error( m );
 		} else if (Protocol.REJECT.equals( t )) {

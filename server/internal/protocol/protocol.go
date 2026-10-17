@@ -43,6 +43,12 @@ const MaxSeedExclusive int64 = 5429503678976
 // MaxSafeInt is the largest JSON-safe integer (2^53 - 1).
 const MaxSafeInt int64 = 1<<53 - 1
 
+// MaxOpaque is the byte limit of every opaque string field (§3).
+const MaxOpaque = 16384
+
+// MaxCell is the cell-index upper bound (int64 form of the §3 cell rule).
+const MaxCell int64 = 65535
+
 // Direction of a message.
 type Direction int
 
@@ -76,15 +82,47 @@ const (
 	TGhost      = "GHOST"
 	TMark       = "MARK"
 	TQuick      = "QUICK"
+	// Missions and The Cell (§5.6).
+	TMissionTrigger = "MISSION_TRIGGER"
+	TMissionStart   = "MISSION_START"
+	TMissionUpdate  = "MISSION_UPDATE"
+	TMissionEnd     = "MISSION_END"
+	// Shared items (§5.7).
+	TClaim     = "CLAIM"
+	TClaimed   = "CLAIMED"
+	TClaimsReq = "CLAIMS_REQ"
+	TClaims    = "CLAIMS"
+	TGive      = "GIVE"
+	TTransfer  = "TRANSFER"
+	TDropShare = "DROP_SHARE"
+	TDeny      = "DENY"
+	// Downed and revive (§5.8).
+	TDowned        = "DOWNED"
+	TAllyDowned    = "ALLY_DOWNED"
+	TUseRecall     = "USE_RECALL"
+	TRevive        = "REVIVE"
+	TDownedExpired = "DOWNED_EXPIRED"
+	// Super Sync (§5.9).
+	TSyncDrink  = "SYNC_DRINK"
+	TSyncStart  = "SYNC_START"
+	TSyncView   = "SYNC_VIEW"
+	TSyncCmd    = "SYNC_CMD"
+	TSyncReport = "SYNC_REPORT"
+	TSyncEnd    = "SYNC_END"
+	// Shared boss HP, twin doors, terrain mirroring (§5.10).
+	TBossEngage = "BOSS_ENGAGE"
+	TBossHit    = "BOSS_HIT"
+	TBossHP     = "BOSS_HP"
+	TBossDead   = "BOSS_DEAD"
+	TTwinAct    = "TWIN_ACT"
+	TTwinDone   = "TWIN_DONE"
+	TTerrain    = "TERRAIN"
 )
 
 // Reserved lists the type names reserved for later versions (§5.4). They
-// decode as unknown_type in v1.
+// decode as unknown_type in v1; within v1 the list only shrinks.
 var Reserved = []string{
-	"MISSION_TRIGGER", "MISSION_START", "TASK_DONE", "MISSION_UPDATE", "MISSION_END",
-	"GIVE", "TRANSFER", "DENY", "DOWNED", "ALLY_DOWNED", "USE_RECALL", "REVIVE",
-	"SYNC_DRINK", "SYNC_START", "SYNC_VIEW", "SYNC_CMD", "SYNC_REPORT", "SYNC_END",
-	"COOP_ROOM_ACT", "COOP_ROOM_STATE",
+	"TASK_DONE", "COOP_ROOM_ACT", "COOP_ROOM_STATE",
 }
 
 // Error codes (PROTOCOL.md §4.3, closed list).

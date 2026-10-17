@@ -1,0 +1,18 @@
+{
+  "name": "c2s-use-recall-bad-via",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "bad_format",
+  "field": "p.via",
+  "message": {
+    "v": 1,
+    "t": "USE_RECALL",
+    "seq": 24,
+    "depth": 2,
+    "branch": 0,
+    "p": {
+      "target": "000000000000000b",
+      "via": "prayer"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "c2s-twin-act-switch-missing-group",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "missing_field",
+  "field": "p.groupId",
+  "message": {
+    "v": 1,
+    "t": "TWIN_ACT",
+    "seq": 62,
+    "depth": 9,
+    "branch": 0,
+    "p": {
+      "objectId": 11,
+      "kind": "switch",
+      "cell": 778,
+      "active": true
+    }
+  }
+}

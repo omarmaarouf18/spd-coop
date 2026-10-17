@@ -1,0 +1,15 @@
+{
+  "name": "s2c-mission-update-ok-paused",
+  "direction": "s2c",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "MISSION_UPDATE",
+    "seq": 25,
+    "p": {
+      "missionId": "0fedcba987654321",
+      "paused": true,
+      "remainingMs": 118000
+    }
+  }
+}

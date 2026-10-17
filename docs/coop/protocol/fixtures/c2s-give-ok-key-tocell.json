@@ -1,0 +1,19 @@
+{
+  "name": "c2s-give-ok-key-tocell",
+  "direction": "c2s",
+  "valid": true,
+  "note": "cross-floor transfer landing cell",
+  "message": {
+    "v": 1,
+    "t": "GIVE",
+    "seq": 18,
+    "depth": 5,
+    "branch": 0,
+    "p": {
+      "itemNetId": "000000000000000a:3",
+      "kind": "item",
+      "item": "v1testyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+      "toCell": 9001
+    }
+  }
+}

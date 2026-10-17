@@ -1,0 +1,16 @@
+{
+  "name": "s2c-mission-end-failed-no-penalty",
+  "direction": "s2c",
+  "valid": false,
+  "reason": "missing_field",
+  "field": "p.penalty",
+  "message": {
+    "v": 1,
+    "t": "MISSION_END",
+    "seq": 30,
+    "p": {
+      "missionId": "0fedcba987654321",
+      "result": "failed"
+    }
+  }
+}

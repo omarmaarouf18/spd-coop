@@ -1,0 +1,19 @@
+{
+  "name": "s2c-claims-ok",
+  "direction": "s2c",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "CLAIMS",
+    "seq": 41,
+    "ack": 40,
+    "p": {
+      "depth": 3,
+      "branch": 1,
+      "itemNetIds": [
+        "3:5",
+        "0123456789abcdef:42"
+      ]
+    }
+  }
+}

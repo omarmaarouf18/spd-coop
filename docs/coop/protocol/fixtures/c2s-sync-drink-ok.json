@@ -1,0 +1,16 @@
+{
+  "name": "c2s-sync-drink-ok",
+  "direction": "c2s",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "SYNC_DRINK",
+    "seq": 31,
+    "depth": 4,
+    "branch": 0,
+    "p": {
+      "snapshot": "v1testyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+      "turns": 200
+    }
+  }
+}

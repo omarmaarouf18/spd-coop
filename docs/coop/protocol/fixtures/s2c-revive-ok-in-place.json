@@ -1,0 +1,15 @@
+{
+  "name": "s2c-revive-ok-in-place",
+  "direction": "s2c",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "REVIVE",
+    "seq": 27,
+    "p": {
+      "target": "000000000000000b",
+      "mode": "inPlace",
+      "hpPct": 25
+    }
+  }
+}

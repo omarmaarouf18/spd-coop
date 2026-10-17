@@ -1,0 +1,19 @@
+{
+  "name": "c2s-mission-trigger-bad-kind",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "bad_format",
+  "field": "p.kind",
+  "message": {
+    "v": 1,
+    "t": "MISSION_TRIGGER",
+    "seq": 12,
+    "depth": 3,
+    "branch": 0,
+    "p": {
+      "kind": "BOMB",
+      "trapCell": 1207,
+      "roomId": 7
+    }
+  }
+}

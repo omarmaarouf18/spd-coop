@@ -1,0 +1,14 @@
+{
+  "name": "s2c-deny-ok",
+  "direction": "s2c",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "DENY",
+    "seq": 6,
+    "ack": 5,
+    "p": {
+      "reason": "taken"
+    }
+  }
+}

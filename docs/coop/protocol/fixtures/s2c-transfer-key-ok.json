@@ -1,0 +1,16 @@
+{
+  "name": "s2c-transfer-key-ok",
+  "direction": "s2c",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "TRANSFER",
+    "seq": 19,
+    "p": {
+      "itemNetId": "000000000000000a:2",
+      "from": "000000000000000a",
+      "to": "000000000000000b",
+      "kind": "cell_key"
+    }
+  }
+}

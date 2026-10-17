@@ -1,0 +1,19 @@
+{
+  "name": "c2s-sync-cmd-move-missing-cell",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "missing_field",
+  "field": "p.cell",
+  "message": {
+    "v": 1,
+    "t": "SYNC_CMD",
+    "seq": 36,
+    "depth": 4,
+    "branch": 0,
+    "p": {
+      "syncId": "0aaaaaaaaaaaa001",
+      "turn": 12,
+      "action": "move"
+    }
+  }
+}

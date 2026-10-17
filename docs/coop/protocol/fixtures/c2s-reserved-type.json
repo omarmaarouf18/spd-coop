@@ -4,13 +4,11 @@
   "valid": false,
   "reason": "unknown_type",
   "field": "t",
-  "note": "reserved for later versions (§5.4)",
+  "note": "reserved for later versions (§5.4); MISSION_TRIGGER left the reserved list in PRO-02",
   "message": {
     "v": 1,
-    "t": "MISSION_TRIGGER",
+    "t": "TASK_DONE",
     "seq": 1,
-    "p": {
-      "roomId": "x"
-    }
+    "p": {}
   }
 }

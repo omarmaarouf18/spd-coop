@@ -1,0 +1,19 @@
+{
+  "name": "c2s-twin-act-ok-door",
+  "direction": "c2s",
+  "valid": true,
+  "note": "same-floor twin door press",
+  "message": {
+    "v": 1,
+    "t": "TWIN_ACT",
+    "seq": 61,
+    "depth": 4,
+    "branch": 0,
+    "p": {
+      "objectId": 3,
+      "kind": "door",
+      "cell": 610,
+      "active": true
+    }
+  }
+}

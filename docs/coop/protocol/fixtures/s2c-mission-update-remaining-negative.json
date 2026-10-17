@@ -1,0 +1,17 @@
+{
+  "name": "s2c-mission-update-remaining-negative",
+  "direction": "s2c",
+  "valid": false,
+  "reason": "out_of_range",
+  "field": "p.remainingMs",
+  "message": {
+    "v": 1,
+    "t": "MISSION_UPDATE",
+    "seq": 25,
+    "p": {
+      "missionId": "0fedcba987654321",
+      "paused": false,
+      "remainingMs": -1
+    }
+  }
+}

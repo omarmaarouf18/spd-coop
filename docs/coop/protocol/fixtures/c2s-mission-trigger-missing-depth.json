@@ -1,0 +1,17 @@
+{
+  "name": "c2s-mission-trigger-missing-depth",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "missing_field",
+  "field": "depth",
+  "message": {
+    "v": 1,
+    "t": "MISSION_TRIGGER",
+    "seq": 12,
+    "p": {
+      "kind": "CELL",
+      "trapCell": 1207,
+      "roomId": 7
+    }
+  }
+}

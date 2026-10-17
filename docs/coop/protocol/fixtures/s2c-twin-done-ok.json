@@ -1,0 +1,15 @@
+{
+  "name": "s2c-twin-done-ok",
+  "direction": "s2c",
+  "valid": true,
+  "note": "for a door, groupId is the door objectId",
+  "message": {
+    "v": 1,
+    "t": "TWIN_DONE",
+    "seq": 64,
+    "ack": 61,
+    "p": {
+      "groupId": 3
+    }
+  }
+}

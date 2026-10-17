@@ -148,10 +148,7 @@ class ProtocolContractTest {
 				assertTrue( have.contains( dir.name().toLowerCase() + ":" + t ), "no valid " + dir + " fixture for " + t );
 			}
 		}
-		List<String> reserved = Arrays.asList( "MISSION_TRIGGER", "MISSION_START", "TASK_DONE", "MISSION_UPDATE",
-				"MISSION_END", "GIVE", "TRANSFER", "DENY", "DOWNED", "ALLY_DOWNED", "USE_RECALL", "REVIVE",
-				"SYNC_DRINK", "SYNC_START", "SYNC_VIEW", "SYNC_CMD", "SYNC_REPORT", "SYNC_END",
-				"COOP_ROOM_ACT", "COOP_ROOM_STATE" );
+		List<String> reserved = Protocol.RESERVED;
 		for (String r : reserved) {
 			for (Direction dir : Direction.values()) {
 				try {

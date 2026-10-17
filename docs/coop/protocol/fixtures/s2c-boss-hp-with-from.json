@@ -1,0 +1,19 @@
+{
+  "name": "s2c-boss-hp-with-from",
+  "direction": "s2c",
+  "valid": false,
+  "reason": "forbidden_field",
+  "field": "from",
+  "note": "server-authored s2c never carries from",
+  "message": {
+    "v": 1,
+    "t": "BOSS_HP",
+    "seq": 53,
+    "from": "000000000000000a",
+    "p": {
+      "bossId": 1,
+      "hp": 528,
+      "ht": 540
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "s2c-sync-end-interrupted",
+  "direction": "s2c",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "SYNC_END",
+    "seq": 46,
+    "p": {
+      "syncId": "0aaaaaaaaaaaa001",
+      "hpLost": 0,
+      "reason": "interrupted"
+    }
+  }
+}

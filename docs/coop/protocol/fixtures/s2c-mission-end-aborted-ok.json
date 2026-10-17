@@ -1,0 +1,14 @@
+{
+  "name": "s2c-mission-end-aborted-ok",
+  "direction": "s2c",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "MISSION_END",
+    "seq": 31,
+    "p": {
+      "missionId": "0fedcba987654321",
+      "result": "aborted"
+    }
+  }
+}

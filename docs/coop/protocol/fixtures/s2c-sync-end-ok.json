@@ -1,0 +1,16 @@
+{
+  "name": "s2c-sync-end-ok",
+  "direction": "s2c",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "SYNC_END",
+    "seq": 45,
+    "ack": 38,
+    "p": {
+      "syncId": "0aaaaaaaaaaaa001",
+      "hpLost": 7,
+      "reason": "expired"
+    }
+  }
+}

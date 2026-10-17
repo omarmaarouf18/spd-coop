@@ -1,0 +1,16 @@
+{
+  "name": "c2s-boss-hit-ok",
+  "direction": "c2s",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "BOSS_HIT",
+    "seq": 52,
+    "depth": 20,
+    "branch": 0,
+    "p": {
+      "bossId": 1,
+      "dmg": 12
+    }
+  }
+}

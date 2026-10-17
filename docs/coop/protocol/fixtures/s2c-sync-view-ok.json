@@ -1,0 +1,27 @@
+{
+  "name": "s2c-sync-view-ok",
+  "direction": "s2c",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "SYNC_VIEW",
+    "seq": 44,
+    "ack": 35,
+    "from": "000000000000000a",
+    "depth": 4,
+    "branch": 0,
+    "p": {
+      "syncId": "0aaaaaaaaaaaa001",
+      "turn": 12,
+      "terrainDiff": [],
+      "entities": [
+        {
+          "id": 17,
+          "kind": "Skeleton",
+          "cell": 402,
+          "hpPct": 86
+        }
+      ]
+    }
+  }
+}

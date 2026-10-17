@@ -1,0 +1,20 @@
+{
+  "name": "s2c-mission-end-penalty-on-success",
+  "direction": "s2c",
+  "valid": false,
+  "reason": "forbidden_field",
+  "field": "p.penalty",
+  "message": {
+    "v": 1,
+    "t": "MISSION_END",
+    "seq": 30,
+    "p": {
+      "missionId": "0fedcba987654321",
+      "result": "success",
+      "penalty": {
+        "regionStartDepth": 1,
+        "goldPct": 25
+      }
+    }
+  }
+}

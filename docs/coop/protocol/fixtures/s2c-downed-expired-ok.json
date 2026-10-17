@@ -1,0 +1,13 @@
+{
+  "name": "s2c-downed-expired-ok",
+  "direction": "s2c",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "DOWNED_EXPIRED",
+    "seq": 40,
+    "p": {
+      "player": "000000000000000b"
+    }
+  }
+}

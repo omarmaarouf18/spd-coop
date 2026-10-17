@@ -168,7 +168,7 @@ func TestInvalidStates(t *testing.T) {
 	c.expectError(protocol.CodeInvalidState)
 
 	// Decode errors and seq order.
-	c.raw([]byte(`{"v":1,"t":"MISSION_TRIGGER","seq":99,"p":{}}`))
+	c.raw([]byte(`{"v":1,"t":"TASK_DONE","seq":99,"p":{}}`))
 	c.expectError(protocol.CodeUnknownType)
 	c.raw([]byte(`{"v":1,"t":"PING","seq":1,"p":{"t":1}}`))
 	c.expectError(protocol.CodeBadMessage) // seq 1 is not above the last one

@@ -1,0 +1,13 @@
+{
+  "name": "s2c-boss-dead-ok",
+  "direction": "s2c",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "BOSS_DEAD",
+    "seq": 54,
+    "p": {
+      "bossId": 1
+    }
+  }
+}

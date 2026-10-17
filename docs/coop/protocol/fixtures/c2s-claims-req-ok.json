@@ -1,0 +1,15 @@
+{
+  "name": "c2s-claims-req-ok",
+  "direction": "c2s",
+  "valid": true,
+  "note": "asks about the claimed set of a floor",
+  "message": {
+    "v": 1,
+    "t": "CLAIMS_REQ",
+    "seq": 40,
+    "p": {
+      "depth": 3,
+      "branch": 1
+    }
+  }
+}

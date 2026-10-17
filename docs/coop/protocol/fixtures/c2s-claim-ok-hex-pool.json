@@ -1,0 +1,16 @@
+{
+  "name": "c2s-claim-ok-hex-pool",
+  "direction": "c2s",
+  "valid": true,
+  "note": "a shared runtime item",
+  "message": {
+    "v": 1,
+    "t": "CLAIM",
+    "seq": 10,
+    "depth": 2,
+    "branch": 0,
+    "p": {
+      "itemNetId": "0123456789abcdef:42"
+    }
+  }
+}

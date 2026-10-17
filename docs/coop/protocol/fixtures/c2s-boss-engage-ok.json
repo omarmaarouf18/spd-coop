@@ -1,0 +1,16 @@
+{
+  "name": "c2s-boss-engage-ok",
+  "direction": "c2s",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "BOSS_ENGAGE",
+    "seq": 51,
+    "depth": 20,
+    "branch": 0,
+    "p": {
+      "bossId": 1,
+      "ht": 300
+    }
+  }
+}

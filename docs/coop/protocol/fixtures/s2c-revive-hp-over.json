@@ -1,0 +1,17 @@
+{
+  "name": "s2c-revive-hp-over",
+  "direction": "s2c",
+  "valid": false,
+  "reason": "out_of_range",
+  "field": "p.hpPct",
+  "message": {
+    "v": 1,
+    "t": "REVIVE",
+    "seq": 26,
+    "p": {
+      "target": "000000000000000b",
+      "mode": "regionStart",
+      "hpPct": 101
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "s2c-boss-hp-ok",
+  "direction": "s2c",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "BOSS_HP",
+    "seq": 53,
+    "ack": 52,
+    "p": {
+      "bossId": 1,
+      "hp": 528,
+      "ht": 540
+    }
+  }
+}

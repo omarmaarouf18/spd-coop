@@ -1,0 +1,20 @@
+{
+  "name": "s2c-mission-end-gold-over",
+  "direction": "s2c",
+  "valid": false,
+  "reason": "out_of_range",
+  "field": "p.penalty.goldPct",
+  "message": {
+    "v": 1,
+    "t": "MISSION_END",
+    "seq": 30,
+    "p": {
+      "missionId": "0fedcba987654321",
+      "result": "failed",
+      "penalty": {
+        "regionStartDepth": 1,
+        "goldPct": 101
+      }
+    }
+  }
+}

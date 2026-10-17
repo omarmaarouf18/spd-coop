@@ -126,7 +126,7 @@ func (v *validator) envelope(root map[string]any) (Envelope, typeSpec, json.RawM
 	}
 
 	// from: ignored on c2s (the server overwrites it, but it must still be a
-	// string); on s2c required exactly on relayed presence.
+	// string); on s2c required exactly on relayed types.
 	raw, hasFrom := root["from"]
 	switch {
 	case v.dir == C2S && hasFrom:
@@ -135,14 +135,14 @@ func (v *validator) envelope(root map[string]any) (Envelope, typeSpec, json.RawM
 		} else {
 			v.fail(KindWrongType, "from", "must be a string")
 		}
-	case v.dir == S2C && Presence(ts) && !hasFrom:
+	case v.dir == S2C && Relayed(ts) && !hasFrom:
 		v.fail(KindMissingField, "from", "required on relayed %s", ts)
-	case v.dir == S2C && Presence(ts):
+	case v.dir == S2C && Relayed(ts):
 		if s, ok := v.str("from", raw); ok && v.match("from", s, hexIDRe, "a 16-char lowercase hex playerId") {
 			env.From = s
 		}
 	case v.dir == S2C && hasFrom:
-		v.fail(KindForbiddenField, "from", "only relayed GHOST/MARK/QUICK carry from")
+		v.fail(KindForbiddenField, "from", "only relayed types (§5.3, §5.7, §5.9, §5.10) carry from")
 	}
 
 	v.floor(root, spec.floor, ts, &env)
@@ -331,6 +331,8 @@ var (
 	hexIDRe    = regexp.MustCompile(`^[0-9a-f]{16}$`)
 	tokenRe    = regexp.MustCompile(`^[A-Za-z0-9_-]{43}$`)
 	roomCodeRe = regexp.MustCompile(`^[` + RoomCodeAlphabet + `]{6}$`)
+	// itemNetIDRe is "<pool>:<n>" (§3): pool 1..255 or a playerId, n 1..9999999999.
+	itemNetIDRe = regexp.MustCompile(`^(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]?|[0-9a-f]{16}):[1-9][0-9]{0,9}$`)
 )
 
 func formatted(re *regexp.Regexp, what string) check {
@@ -342,9 +344,11 @@ func formatted(re *regexp.Regexp, what string) check {
 }
 
 var (
-	hexID    = formatted(hexIDRe, "16 lowercase hex chars")
-	token    = formatted(tokenRe, "43 base64url chars")
-	roomCode = formatted(roomCodeRe, "6 chars from "+RoomCodeAlphabet)
+	hexID            = formatted(hexIDRe, "16 lowercase hex chars")
+	token            = formatted(tokenRe, "43 base64url chars")
+	roomCode         = formatted(roomCodeRe, "6 chars from "+RoomCodeAlphabet)
+	itemNet          = formatted(itemNetIDRe, `"<pool>:<n>" (floor index 1..255 or a playerId, then 1..9999999999)`)
+	opaqueBlob check = opaque
 )
 
 func enum(values ...string) check {
@@ -378,6 +382,72 @@ func slotsAscending(name string) func(v *validator, path string, obj map[string]
 			}
 			prev = n
 		}
+	}
+}
+
+// chain combines objSchema checks and keeps the first failure; a rule that
+// already fired an error stops further ones from running.
+func chain(rules ...func(v *validator, path string, obj map[string]any)) func(v *validator, path string, obj map[string]any) {
+	return func(v *validator, path string, obj map[string]any) {
+		for _, r := range rules {
+			if v.err != nil {
+				return
+			}
+			r(v, path, obj)
+		}
+	}
+}
+
+// valueDep makes dep required when trigger is one of when, and forbidden
+// otherwise (e.g. GIVE.item when kind == "item").
+func valueDep(trigger, dep string, when []string) func(v *validator, path string, obj map[string]any) {
+	return func(v *validator, path string, obj map[string]any) {
+		val, _ := obj[trigger].(string)
+		_, has := obj[dep]
+		switch {
+		case slices.Contains(when, val) && !has:
+			v.fail(KindMissingField, join(path, dep), "required with %s %q", trigger, val)
+		case !slices.Contains(when, val) && has:
+			v.fail(KindForbiddenField, join(path, dep), "forbidden unless %s is one of (%s)", trigger, strings.Join(when, ", "))
+		}
+	}
+}
+
+// prisonersDiffer rejects a mission addressed to one player twice.
+func prisonersDiffer(v *validator, path string, obj map[string]any) {
+	prisoner, _ := obj["prisoner"].(string)
+	rescuer, _ := obj["rescuer"].(string)
+	if prisoner == rescuer {
+		v.fail(KindBadFormat, join(path, "rescuer"), "prisoner and rescuer must be different players")
+	}
+}
+
+// pairList validates a flat [cell, tile, cell, tile, …] array (§5.9).
+func pairList(maxPairs int, lo, hi int64) check {
+	return func(v *validator, path string, x any) {
+		arr, ok := x.([]any)
+		if !ok {
+			v.fail(KindWrongType, path, "must be an array")
+			return
+		}
+		if len(arr) > 2*maxPairs {
+			v.fail(KindOutOfRange, path, "at most %d pairs, has %d", maxPairs, len(arr))
+			return
+		}
+		if len(arr)%2 != 0 {
+			v.fail(KindWrongType, path, "must hold complete [cell, tile] pairs, got %d values", len(arr))
+			return
+		}
+		for i, e := range arr {
+			intRange(lo, hi)(v, join(path, strconv.Itoa(i)), e)
+		}
+	}
+}
+
+// opaque validates an opaque string field: at most MaxOpaque bytes.
+func opaque(v *validator, path string, x any) {
+	if s, ok := v.str(path, x); ok && len(s) > MaxOpaque {
+		v.fail(KindTooLong, path, "at most %d bytes", MaxOpaque)
 	}
 }
 

@@ -1,0 +1,19 @@
+{
+  "name": "c2s-claims-req-with-floor",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "forbidden_field",
+  "field": "depth",
+  "note": "the payload names the floor; the envelope stays clean",
+  "message": {
+    "v": 1,
+    "t": "CLAIMS_REQ",
+    "seq": 40,
+    "depth": 3,
+    "branch": 1,
+    "p": {
+      "depth": 4,
+      "branch": 0
+    }
+  }
+}
