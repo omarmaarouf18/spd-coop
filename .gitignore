@@ -18,3 +18,15 @@ local.properties
 #intellij project files
 *.iml
 *.idea
+
+# Logic Link PD (co-op fork)
+# Go server build output
+server/bin/
+# Local databases
+*.db
+# Env files hold real config; only the example is tracked
+deploy/.env
+.env*
+!.env.example
+# Agent worktrees if created inside the repo by mistake
+/spd-wt/
