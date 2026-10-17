@@ -19,11 +19,14 @@ Logic Link PD: a non-commercial online 2-player co-op mod of Shattered Pixel Dun
 - Design/architecture/decisions → `docs/coop/` (D-001…D-018).
 
 ## Not done yet (in order)
-1. `TST-01` determinism goldens from vanilla v4.0.2 (**before** any co-op code)
-2. `BRD-01` app name/package (`build.gradle` step 4b deferred from DOC-01), branding, disable/redirect news & updates
-3. `PRO-01` protocol v1 fixtures (+ `protocol-contract` CI job, protocol gate stage) + `SRV-01` server lobby/handshake + `NET-01` client handshake/lobby
-4. `GHO-01` ghost presence → first playable milestone (local: 2 desktop clients + dev compose)
-5. `MEC-01` The Cell → `MEC-02` Downed/Recall → `SYN-01` Super Sync + Remote View
+Owner priority (2026-10-17): **a working product first. Branding waits until after the first playable.**
+1. In parallel (lanes don't overlap):
+   - `TST-01` determinism goldens from vanilla v4.0.2 → prompt `docs/prompts/TST-01.md` (must be merged **before** any game Java code lands)
+   - `PRO-01` protocol v1 spec + fixtures + contract tests, then `SRV-01` server lobby/run start/presence relay/resume → prompt `docs/prompts/PRO-01_SRV-01.md`
+2. `NET-01` client: `coop` package, websocket client, lobby UI, `CoopRun` + co-op save slot, run start with the server seed (after TST-01 and PRO-01 are merged)
+3. `GHO-01` ghost presence + ally compass + ping/quick → **first playable milestone** (local: 2 desktop clients + `make server-dev`)
+4. `MEC-01` The Cell → `MEC-02` Downed/Recall → `SYN-01` Super Sync + Remote View
+5. `BRD-01` app name/package (`build.gradle` step 4b deferred from DOC-01), branding, disable/redirect news & updates (deferred by the owner)
 
 ## Follow-ups
 - Local JDK: install a non-EA JDK with `javac` (`sudo dnf install java-25-openjdk-devel`). The gate currently uses OpenJDK 27 EA.
