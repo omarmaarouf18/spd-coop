@@ -91,3 +91,11 @@ To change a decision, add a new entry that supersedes it. Don't edit history.
   - **Part 1 (now):** deploy repo, GitHub App + secrets, first `main` release (the image goes to GHCR, the sync goes to the deploy repo, plus the APK artifact).
   - **Part 2 (deferred):** VPS, firewall, `deploybot`, DNS, self-hosted runner `spd-coop-vps`, first deploy, rollback drills A (pre-flight with a missing tag) and B (real rollback: internal health OK, Caddy 502).
 - **Consequence:** `deploy.yml` won't run until the runner exists. A push to the deploy repo queues a `deploy` job that no runner picks up, and GitHub cancels it after ~24 h. That shows as a cancelled run, which is expected and harmless until part 2.
+
+### D-018 — Deploy pipeline: GHCR image + bot-synced deploy repo + VPS runner (implements D-014/D-015)
+- **Status:** Accepted (2026-10-17). The main-repo half was verified on GitHub (`main` at short `9c5863b`, build-and-publish attempt 2). The VPS half is deferred (D-017).
+- **Decision:**
+  - `build-and-publish.yml` (push to `main` touching `server/**`/`deploy/**`, or manual) builds `ghcr.io/omarmaarouf18/spd-coop-server:<sha>` + `:latest`. The package is public, inherited from the public repo.
+  - The GitHub App `spd-coop-automation` (Contents + Workflows write, installed on `spd-coop-deploy` only, short-lived installation tokens, `persist-credentials: false`) syncs `deploy/` into the private, bot-only `spd-coop-deploy`, with `:IMAGE_TAG` pinned to `<sha>`.
+  - The deploy repo's `deploy.yml` runs on a self-hosted runner (`spd-coop-vps`, user `deploybot`): `.env` symlink → pre-flight `-check-env` (abort before touching containers) → pull/up → internal + external health → automatic rollback to `HEAD~1` → log dump.
+- **Consequences:** no PAT and no build on the VPS. A missing App secret skips the sync with a notice instead of failing (verified). A non-existent image tag is caught by the pre-flight, not the rollback. So the drills are: **A** pre-flight (missing tag), **B** real rollback (a config that passes the pre-flight but fails health, e.g. `PORT: "9999"` → Caddy 502).
