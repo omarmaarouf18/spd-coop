@@ -1,43 +1,46 @@
 # AI Context — current project state
 
 > **Owner-maintained.** Agents read this first (after `AGENTS.md`) but don't edit it on agent branches. Write `docs/worklog/<TASK-ID>.md` instead.
-> Last updated: 2026-10-17 (fold of DOC-01, WF-01, WF-02, SRV-00, OPS-01 part 1)
+> Last updated: 2026-10-17 (fold through NET-01c; D-019, D-020)
 
 ## Project summary
 Logic Link PD: a non-commercial online 2-player co-op mod of Shattered Pixel Dungeon v4.0.2, for Android, iOS and Desktop. It uses the Parallel Worlds model with interdependent co-op tasks, and a Go server that is authoritative for shared state.
 
 ## Phase
-**Setup (foundation).** Repo, workflow, CI and the Dockerized server skeleton are on `dev`. No co-op gameplay code exists yet.
-**Testing is local-only for now** (D-017): two desktop clients + `make server-dev` (dev compose). There's no VPS/domain yet.
+**Building the first playable.** Lobby + run start work end to end locally (owner tested: two desktop clients + `make server-dev`, same room, same seed). Players don't see each other yet (GHO-01).
+**Testing is local-only** (D-017). **Owner priority:** a fully playable game with every designed feature, before branding/publishing.
 
 ## Done
-- `DOC-01`: repo `omarmaarouf18/spd-coop` (public). `master` = upstream v4.0.2 mirror, `dev` = integration, `main` = releases. `upstream` push disabled. Planning docs committed.
-- `WF-01`: local gate (`make check` scoped, pass stamp, `make commit`), `.githooks/pre-push` (agent push guard + gate on pushed range), `make worktree-new`, gitleaks, shellcheck, actionlint, version drift guard. Pinned tools in `tools/versions.env` (JDK 17 for CI, Go 1.27.2, govulncheck v1.8.0, gitleaks v8.30.1, actionlint v1.7.12).
-- `WF-02`: `ci.yml` (versions/lint, Java build+test, Go server, Docker+compose, gitleaks, markdown SHA check), `android-apk.yml` (main + manual), `ios.yml` (manual, allowed to fail). The first CI run on `dev` (short `97a6fe2`) was **6/6 green**.
-- `SRV-00`: Go server skeleton (`/healthz`, `/ws` stub answering `NOT_IMPLEMENTED`, SQLite store, `-check-env`, `-healthcheck`, graceful shutdown). Distroless non-root image. `deploy/` reference files (prod compose with Caddy + internal network + pinned volumes, dev compose, Caddyfile, `deploy.yml` with pre-flight/health/rollback). `build-and-publish.yml` (GHCR image + sync to the deploy repo, skips without App secrets).
-- `OPS-01` part 1: GitHub App `spd-coop-automation` (on `spd-coop-deploy` only) + secrets `APP_ID`/`APP_PRIVATE_KEY`. First `main` release (short `9c5863b`): CI 6/6, APK built, image on GHCR (public), deploy repo synced and pinned to the SHA (D-018). Part 2 (VPS) deferred (D-017).
-- Design/architecture/decisions → `docs/coop/` (D-001…D-018).
+- Foundation: `DOC-01`, `WF-01..05` (gate, CI, Node 24 actions, JDK auto-pick, `make server-probe`), `SRV-00`, `OPS-01` part 1 (D-018).
+- `TST-01`: vanilla v4.0.2 determinism goldens (9 seeds); `VanillaGoldensTest` guards single-player.
+- `PRO-01`: protocol v1 (`docs/coop/protocol/PROTOCOL.md` + fixtures, Go package, contract tests).
+- `SRV-01`: lobby, run start (same seed), presence relay, resume, runs survive a server restart.
+- `NET-01a/b/c`: Java websocket transport, protocol client (`CoopSession`, Java contract tests), co-op lobby UI (`WndCoop`), `CoopRun`, co-op save slots 101–106, neutral profile during co-op level gen, `LLPD_PROFILE=b` second local player. Upstream hooks so far: `Dungeon`, `GamesInProgress`, `Bones`, `TitleScene`, `DesktopLauncher` (all `// COOP:`).
 
-## Not done yet (in order)
-Owner priority (2026-10-17): **a working product first. Branding waits until after the first playable.**
-1. In parallel (lanes don't overlap):
-   - `TST-01` determinism goldens from vanilla v4.0.2 → prompt `docs/prompts/TST-01.md` (must be merged **before** any game Java code lands)
-   - `PRO-01` protocol v1 spec + fixtures + contract tests, then `SRV-01` server lobby/run start/presence relay/resume → prompt `docs/prompts/PRO-01_SRV-01.md`
-2. `NET-01` client: `coop` package, websocket client, lobby UI, `CoopRun` + co-op save slot, run start with the server seed (after TST-01 and PRO-01 are merged)
-3. `GHO-01` ghost presence + ally compass + ping/quick → **first playable milestone** (local: 2 desktop clients + `make server-dev`)
-4. `MEC-01` The Cell → `MEC-02` Downed/Recall → `SYN-01` Super Sync + Remote View
-5. `BRD-01` app name/package (`build.gradle` step 4b deferred from DOC-01), branding, disable/redirect news & updates (deferred by the owner)
+## Roadmap to fully playable (in order; same-step items run in parallel)
+**Step 1 (now, in parallel):**
+- `GHO-01` ghost presence, ally compass/status, pings, quick messages → first playable
+- `DET-01` co-op level gen depends only on seed+depth, stable iteration, co-op goldens (D-019)
+- `PRO-02` protocol v1.1 for missions/items/downed/super sync + `SRV-02` server mission engine (timers, item transfer, downed window)
+
+**Step 2:** `MEC-00` client mission framework (forced turns, mission HUD, timer) + `ITM-01` item network IDs/transfer on the client (after DET-01)
+**Step 3:** `MEC-01` The Cell (Binding Trap, D-020) · `MEC-02` Downed + Scroll of Recall
+**Step 4:** `SYN-01` Super Sync (player-controlled projection + Remote View)
+**Step 5:** `ROOM-01` co-op room framework + puzzles (Mirror Lock, Pressure Bridge, Rune Wall, Totem Shield, Dark Floor, Item Shrine) · `GATE-01` mandatory co-op gates
+**Step 6:** `BAL-01` tuning, `UI-01` strings/sprites/tutorial, `QA-01` full 1→26 co-op run
+**Later:** `BRD-01` branding, mobile/iOS, OPS-01 part 2 (VPS)
 
 ## Follow-ups
-- Local JDK: install a non-EA JDK with `javac` (`sudo dnf install java-25-openjdk-devel`). The gate currently uses OpenJDK 27 EA.
-- GitHub settings: set the default branch to `dev` (it is still `main`), and protect `main` (CI green, fast-forward only).
-- `WF-03`: bump GitHub Actions off Node 20 (deprecation warnings from the first runs).
-- `OPS-01` part 2 (deferred, D-017): needs a VPS, its OS, and a `DOMAIN`. Until then the deploy repo's `Deploy` run stays queued with no runner (harmless, auto-cancelled).
-- Pin `caddy` to a fixed tag (currently `caddy:2-alpine`) so a rollback restores Caddy too: `OPS-01` part 2.
-- `ios.yml`: the RoboVM recipe is unknown and expected to fail (a later `REL` task).
+- Local builds: `export JAVA_HOME=/usr/lib/jvm/java-25-openjdk` (the default `java` 25 is a headless JRE). The gate auto-picks a JDK by itself.
+- GitHub settings: default branch → `dev`, protect `main`. Delete the merged cloud branch `claude/optimistic-ride-kjpruf`.
+- Wire `ProtocolContractTest` (Java) into the gate's `protocol` stage and CI's `protocol-contract` job. Add the pre-`WELCOME` numbering line to PROTOCOL.md §2 (done in PRO-02).
+- Android release: R8 rules for Java-WebSocket. iOS transport. `wss://` untested.
+- Guide/alchemy/lore pages don't drop in co-op runs (side effect of the neutral profile). Revisit later.
+- `OPS-01` part 2 (VPS) deferred (D-017). Pin the `caddy` tag then.
+- `WF-03` follow-up: `APP_CLIENT_ID` + `client-id:` in build-and-publish (one deprecation warning).
 
 ## Open questions (owner)
-See `docs/coop/game-design.md` §11. The ones blocking implementation: mandatory gate floors, real death outside missions, app name/package name.
+See `docs/coop/game-design.md` §11. Blocking later steps: mandatory gate floors (step 5), real death outside missions (step 3), ghost FOV sharing, a prisoner-side puzzle in The Cell, thrown weapons in Super Sync. App name/package only matters for BRD-01.
 
 ## Standing rules
 `AGENTS.md` (code rules) + `docs/coop/WORKFLOW.md` (process). Any new agent instruction file (CODEX.md, .cursorrules, …) must be a short pointer to `AGENTS.md`, never a copy.

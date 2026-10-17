@@ -99,3 +99,12 @@ To change a decision, add a new entry that supersedes it. Don't edit history.
   - The GitHub App `spd-coop-automation` (Contents + Workflows write, installed on `spd-coop-deploy` only, short-lived installation tokens, `persist-credentials: false`) syncs `deploy/` into the private, bot-only `spd-coop-deploy`, with `:IMAGE_TAG` pinned to `<sha>`.
   - The deploy repo's `deploy.yml` runs on a self-hosted runner (`spd-coop-vps`, user `deploybot`): `.env` symlink → pre-flight `-check-env` (abort before touching containers) → pull/up → internal + external health → automatic rollback to `HEAD~1` → log dump.
 - **Consequences:** no PAT and no build on the VPS. A missing App secret skips the sync with a notice instead of failing (verified). A non-existent image tag is caught by the pre-flight, not the rollback. So the drills are: **A** pre-flight (missing tag), **B** real rollback (a config that passes the pre-flight but fails health, e.g. `PORT: "9999"` → Caddy 502).
+
+### D-019 — Co-op level gen depends only on seed + depth (+ branch)
+- **Status:** Accepted (2026-10-17)
+- **Context:** NET-01c found that floors 2+ can differ between the two players, because level gen reads run state that gameplay changes (`Generator` deck/probabilities, `LimitedDrops`, …). TST-01 found upstream `HashMap` identity-order iteration (`SecretLaboratoryRoom`, `SecretLibraryRoom`, `ShopRoom.ChooseBag`) and `Collections.shuffle` with the JDK RNG (`VaultLevel`). ART/RoboVM can't use the test's JVM flag.
+- **Decision:** in **co-op runs only**, level generation runs on a dedicated level-gen state that evolves only through level generation itself (swapped in around `level.create()`), and the non-deterministic iterations are made order-stable. Vanilla behavior and `VanillaGoldensTest` stay unchanged. Task `DET-01`, plus co-op goldens that prove both players' worlds are identical regardless of how each one plays.
+
+### D-020 — The Cell is triggered by a hidden Binding Trap (supersedes the fixed Cell room of game-design v0.1)
+- **Status:** Accepted (2026-10-17, owner: "a trap on the floor or something random, for challenge")
+- **Decision:** variant **A**. A seeded hidden trap, 0–1 per eligible floor. It's armed only when the ally is online on the same floor. The stepper becomes the prisoner, and their current room seals. The rescuer's key spawns at a server-chosen cell. Variant **B** (a rare server-rolled ambush) is a later option. Details: game-design §4.1.

@@ -44,11 +44,15 @@ Players on mobile can't type quickly, so communication is a core system, not pol
 
 The flagship co-op mechanic. One player gets trapped, and both have to act to free them.
 
-### 4.1 Setup
-- A **Cell room** is generated on eligible floors (co-op runs only). It's the same room in both worlds, with asymmetric state by role:
-  - **Prisoner (role A):** walking into the cell triggers it. The door slams shut (*locked in A's world, open in B's world*).
-  - **Rescuer (role B):** the cell door is open in B's world. A **Cell Key** spawns at a seeded location on B's floor, chosen from the candidate cells when the mission starts. B gets a ping toward it.
-- The mission starts and the **server** starts the timer. Both players see the timer and each other's task progress.
+### 4.1 Setup: trap-triggered (D-020)
+- There is **no fixed Cell room**. The Cell is triggered by a **Binding Trap**: a hidden trap placed by co-op level gen (seeded, so it sits on the same cell in both worlds), **0–1 per eligible floor**. It can be found by searching, like any SPD hidden trap.
+- **Eligible:** standard rooms only. Never on the entrance/exit room, shops, boss floors, or special/secret rooms, and never on floor 1.
+- **Arming rule:** the trap only fires if the ally is **online and on the same depth+branch**. Otherwise stepping on it does nothing and it stays hidden and armed for later.
+- **Who is who:** whoever steps on it is the **Prisoner**, and the other player is the **Rescuer** (the roles are not pre-assigned).
+- **Prisoner:** the **room they're standing in seals** (its doors lock, like SPD's locked-room events). That room is the cell, in the prisoner's world only.
+- **Rescuer:** the same room stays open in the rescuer's world. A **Cell Key** spawns at a server-chosen random cell on the rescuer's floor (from candidate cells reachable in their world), and the rescuer gets a ping toward it.
+- The mission starts, and the **server** starts the timer. Both players see the timer and each other's task progress.
+- **Later option (B):** a rare server-rolled "ambush" event that seals the prisoner's current room with no trap at all. Not in v1.
 
 ### 4.2 Tasks (both must act)
 - **Rescuer:** find the Cell Key in their world, walk their **ghost** to the cell door (same cells), then use **Give**. The server transfers the key (exactly once), and the door unlocks in A's world.
@@ -84,7 +88,7 @@ Turn-based problem: a world's time only moves when its hero acts. If timers coun
 
 ### 4.6 Reward
 - Success gives **both** players a reward from the Cell's seeded loot: one guaranteed rare (artifact / +2 item / exotic), plus a small shared buff ("Bonded": +10% accuracy for 200 turns). ❓
-- The prisoner role alternates between missions, so neither player is always the one trapped.
+- Roles come from who triggers the trap (not alternated).
 
 ### 4.7 Frequency
 - Optional Cells: ~1 per 2 floors (seeded). They don't spawn on boss floors or on floor 1.
