@@ -3,7 +3,69 @@ apply plugin: 'java-library'
 [compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
 java.sourceCompatibility = java.targetCompatibility = appJavaCompatibility
 
+ext.goldensFile = file('src/test/resources/goldens/vanilla-v4.0.2.json')
+
 dependencies {
     api project(':SPD-classes')
     implementation project(':services')
+
+    // TST-01: determinism goldens harness. Test scope only, never shipped.
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation "com.badlogicgames.gdx:gdx-backend-headless:$gdxVersion"
+    testRuntimeOnly "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-desktop"
+}
+
+test {
+    useJUnitPlatform()
+
+    // one JVM per test class: IsolationTest needs to generate its first seed in a
+    // JVM where nothing else ran before (order-independence proof)
+    forkEvery = 1
+
+    // Gdx.files.internal("messages/...") etc. must resolve the game assets
+    workingDir = file('src/main/assets')
+
+    // the harness pins java.util.Collections' default Random (upstream calls
+    // Collections.shuffle(list) without the game RNG in a few places)
+    jvmArgs '--add-opens', 'java.base/java.util=ALL-UNNAMED'
+    // upstream iterates HashMap<Class,Float> maps during level gen (secret lab/
+    // library rooms); with default identity hashes that order is JVM-dependent.
+    // A constant identity hash makes every such iteration order deterministic.
+    jvmArgs '-XX:+UnlockExperimentalVMOptions', '-XX:hashCode=2'
+
+    // the goldens live in the source tree so regenGoldens can rewrite them
+    systemProperty 'llpd.goldens.file', goldensFile.absolutePath
+    // plain `test` never writes goldens; only an explicit -Dgoldens.regen=true does
+    systemProperty 'goldens.regen', System.getProperty('goldens.regen', 'false')
+
+    // cross-JDK determinism proof: -Pllpd.testJvm=/path/to/java runs the test JVM
+    // on another JDK while Gradle itself stays on the build JDK
+    if (project.hasProperty('llpd.testJvm')) {
+        executable = project.property('llpd.testJvm')
+    }
+}
+
+// Rewrites core/src/test/resources/goldens/vanilla-v4.0.2.json from the current
+// game code. Must be run deliberately and the diff reviewed (WORKFLOW.md §6).
+tasks.register('regenGoldens', Test) {
+    group = 'verification'
+    description = 'Regenerate the vanilla determinism goldens (writes the golden file)'
+
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform()
+    workingDir = file('src/main/assets')
+    // same harness needs as `test`: pin java.util.Collections' default Random
+    // and use a constant identity hash (see the `test` block)
+    jvmArgs '--add-opens', 'java.base/java.util=ALL-UNNAMED'
+    jvmArgs '-XX:+UnlockExperimentalVMOptions', '-XX:hashCode=2'
+    if (project.hasProperty('llpd.testJvm')) {
+        executable = project.property('llpd.testJvm')
+    }
+    systemProperty 'llpd.goldens.file', goldensFile.absolutePath
+    systemProperty 'goldens.regen', 'true'
+    filter {
+        includeTestsMatching 'com.shatteredpixel.shatteredpixeldungeon.coop.test.VanillaGoldensTest'
+    }
 }
