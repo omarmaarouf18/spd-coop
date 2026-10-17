@@ -44,6 +44,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Ghoul;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mimic;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Snake;
+import com.shatteredpixel.shatteredpixeldungeon.coop.Coop;
 import com.shatteredpixel.shatteredpixeldungeon.effects.BannerSprites;
 import com.shatteredpixel.shatteredpixeldungeon.effects.BlobEmitter;
 import com.shatteredpixel.shatteredpixeldungeon.effects.CheckedCell;
@@ -310,6 +311,8 @@ public class GameScene extends PixelScene {
 			addHeapSprite( heap );
 		}
 
+		Coop.addGhostLayer( this ); // COOP: the ally ghost, above items and under mobs/hero
+
 		emitters = new Group();
 		effects = new Group();
 		healthIndicators = new Group();
@@ -396,6 +399,7 @@ public class GameScene extends PixelScene {
 		add( emoicons );
 		
 		add( cellSelector = new CellSelector( tiles ) );
+		Coop.addGameHud( this, cellSelector ); // COOP: ping input on cells, ping markers, co-op HUD
 
 		int uiSize = SPDSettings.interfaceSize();
 

@@ -79,6 +79,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Monk;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Snake;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.Imp;
+import com.shatteredpixel.shatteredpixeldungeon.coop.Coop;
 import com.shatteredpixel.shatteredpixeldungeon.effects.CellEmitter;
 import com.shatteredpixel.shatteredpixeldungeon.effects.FloatingText;
 import com.shatteredpixel.shatteredpixeldungeon.effects.Speck;
@@ -835,6 +836,8 @@ public class Hero extends Char {
 	
 	@Override
 	public boolean act() {
+
+		Coop.onHeroTurn( this ); // COOP: the previous action resolved: the ally ghost gets our new pos
 		
 		//calls to dungeon.observe will also update hero's local FOV.
 		fieldOfView = Dungeon.level.heroFOV;
@@ -2235,6 +2238,7 @@ public class Hero extends Char {
 		
 		Actor.fixTime();
 		super.die( cause );
+		Coop.onHeroDied( this ); // COOP: ghost death animation
 		reallyDie( cause );
 	}
 	
@@ -2353,6 +2357,8 @@ public class Hero extends Char {
 	@Override
 	public void onAttackComplete() {
 
+		Coop.onHeroAttacked( this ); // COOP: ghost attack animation
+
 		if (attackTarget == null){
 			curAction = null;
 			super.onAttackComplete();
@@ -2389,6 +2395,8 @@ public class Hero extends Char {
 	
 	@Override
 	public void onOperateComplete() {
+
+		Coop.onHeroOperated( this ); // COOP: ghost operate animation
 		
 		if (curAction instanceof HeroAction.Unlock) {
 
