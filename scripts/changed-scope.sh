@@ -22,8 +22,8 @@
 #   server    gofmt -l, go vet, go test, govulncheck (no-op until server/go.mod exists)
 #   docker    docker build of server/ + compose config of deploy/*.yml
 #             (no-op until server/Dockerfile / deploy/ compose files exist)
-#   protocol  Java + Go contract tests on docs/coop/protocol/fixtures
-#             (no-op until the fixtures dir exists)
+#   protocol  contract tests on docs/coop/protocol/fixtures: Go now, Java
+#             from NET-01 (see the hook in .githooks/pre-push)
 #   docs      markdown SHA check (scripts/md-sha-check.sh)
 #   actions   actionlint on .github/workflows/*.yml and deploy/deploy.yml
 #   shell     shellcheck on scripts/*.sh and .githooks/*
@@ -32,6 +32,7 @@
 # Mapping (first match wins, per path; the scope is the union over all paths):
 #   coop/net/Protocol.java, server/internal/protocol/**,
 #   docs/coop/protocol/fixtures/**      -> protocol + java + server
+#   docs/coop/protocol/*.md (the spec)  -> protocol + docs
 #   server/Dockerfile, server/.dockerignore -> server + docker
 #   server/**                           -> server
 #   deploy/deploy.yml                   -> docker + actions
@@ -87,6 +88,10 @@ classify() { # classify <path>
 	case "$p" in
 	"$COOP_PROTOCOL_JAVA" | server/internal/protocol/* | docs/coop/protocol/fixtures/*)
 		on protocol java server
+		;;
+	docs/coop/protocol/*.md)
+		# The spec: its own docs check plus the contract tests it describes.
+		on protocol docs
 		;;
 	server/Dockerfile | server/.dockerignore)
 		on server docker
@@ -219,7 +224,7 @@ else
 		[ "${ON[$t]}" -eq 0 ] || KEY="${KEY:+$KEY }$t"
 	done
 	say "SCOPED gate ($NPATHS changed path(s)): $KEY"
-	sort -u "$PATHS_FILE" | sed '/^$/d' | head -n 20 | sed 's/^/scope:   /' >&2
+	sort -u "$PATHS_FILE" | sed -n '/^$/!p' | sed -n '1,20s/^/scope:   /p' >&2
 	[ "$NPATHS" -le 20 ] || say "  ... and $((NPATHS - 20)) more"
 fi
 
