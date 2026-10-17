@@ -108,3 +108,8 @@ To change a decision, add a new entry that supersedes it. Don't edit history.
 ### D-020 — The Cell is triggered by a hidden Binding Trap (supersedes the fixed Cell room of game-design v0.1)
 - **Status:** Accepted (2026-10-17, owner: "a trap on the floor or something random, for challenge")
 - **Decision:** variant **A**. A seeded hidden trap, 0–1 per eligible floor. It's armed only when the ally is online on the same floor. The stepper becomes the prisoner, and their current room seals. The rescuer's key spawns at a server-chosen cell. Variant **B** (a rare server-rolled ambush) is a later option. Details: game-design §4.1.
+
+### D-021 — Carry over the owner's world-link mechanics from the v3.3.8 prototype
+- **Status:** Accepted (2026-10-17, owner: "I thought about these from every angle; the old stack was the problem, not the design")
+- **Decision:** all game mechanics of the prototype come back in the new design (game-design §5.3, §6A, §7, §10): shared floor loot (first claim wins), drop-to-ally on the same floor, shared boss HP pool, Twin Door, Twin Switches room (+ opaque ghost inside), door mirroring on the same floor, co-op balance (mobs ×1.2, more food), and revive by throwing a Potion of Healing at the downed ally's ghost.
+- **Implementation rules (what changes vs the prototype):** server-authoritative claims/windows/boss HP (no turn-clock comparisons, no client-trusted state), every message floor-scoped (`depth`/`branch`), stable `itemNetId`s from co-op level gen (DET-01), everything gated on the persisted co-op run flag, never on socket state.

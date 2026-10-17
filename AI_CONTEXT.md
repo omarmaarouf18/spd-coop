@@ -1,7 +1,7 @@
 # AI Context — current project state
 
 > **Owner-maintained.** Agents read this first (after `AGENTS.md`) but don't edit it on agent branches. Write `docs/worklog/<TASK-ID>.md` instead.
-> Last updated: 2026-10-17 (fold through NET-01c; D-019, D-020)
+> Last updated: 2026-10-17 (fold through NET-01c; D-019, D-020, D-021)
 
 ## Project summary
 Logic Link PD: a non-commercial online 2-player co-op mod of Shattered Pixel Dungeon v4.0.2, for Android, iOS and Desktop. It uses the Parallel Worlds model with interdependent co-op tasks, and a Go server that is authoritative for shared state.
@@ -23,14 +23,16 @@ Logic Link PD: a non-commercial online 2-player co-op mod of Shattered Pixel Dun
 - `DET-01` co-op level gen depends only on seed+depth, stable iteration, co-op goldens (D-019)
 - `PRO-02` protocol v1.1 for missions/items/downed/super sync + `SRV-02` server mission engine (timers, item transfer, downed window)
 
-**Step 2:** `MEC-00` client mission framework (forced turns, mission HUD, timer) + `ITM-01` item network IDs/transfer on the client (after DET-01)
-**Step 3:** `MEC-01` The Cell (Binding Trap, D-020) · `MEC-02` Downed + Scroll of Recall
+**Step 2:** `MEC-00` client mission framework (forced turns, mission HUD, timer) + `ITM-01` item network IDs, shared floor loot, drop-to-ally (D-021) + `LINK-01` door mirroring + `DET-02` per-player loot overlay (after DET-01)
+**Step 3:** `MEC-01` The Cell (Binding Trap, D-020) · `MEC-02` Downed + Scroll of Recall + Healing-potion revive · `BOSS-01` shared boss HP
 **Step 4:** `SYN-01` Super Sync (player-controlled projection + Remote View)
-**Step 5:** `ROOM-01` co-op room framework + puzzles (Mirror Lock, Pressure Bridge, Rune Wall, Totem Shield, Dark Floor, Item Shrine) · `GATE-01` mandatory co-op gates
+**Step 5:** `ROOM-01` co-op room framework + puzzles (Twin Door, Twin Switches, Mirror Lock, Pressure Bridge, Rune Wall, Totem Shield, Dark Floor, Item Shrine) · `GATE-01` mandatory co-op gates
 **Step 6:** `BAL-01` tuning, `UI-01` strings/sprites/tutorial, `QA-01` full 1→26 co-op run
 **Later:** `BRD-01` branding, mobile/iOS, OPS-01 part 2 (VPS)
 
 ## Follow-ups
+- **DET-01 side effects (fix in `DET-02`, per-player loot overlay):** co-op level gen uses a neutral hero, so these no longer appear in co-op: Dried Rose petals, Hourglass sand bags in shops, Cached Rations, trinket effects on gen, class-specific shop bag and Vault Mirror reward. Plan: spawn them **per player at runtime** when that player first enters a floor (local-only, not in the shared pool). Also: an artifact a player got from a mob/transmutation can generate again later (de-dup via run state shared on the server), and mob-held items (Mimic loot, Statue weapon) lose their `itemNetId` after reload (ITM-01).
+- **Grants already decided for ITM-01:** `items/Item.java` (2 lines: store/restore `itemNetId` in the item bundle). The co-op food boost stays deck-based (≈30% on average, no `Generator.java` hook).
 - Local builds: `export JAVA_HOME=/usr/lib/jvm/java-25-openjdk` (the default `java` 25 is a headless JRE). The gate auto-picks a JDK by itself.
 - GitHub settings: default branch → `dev`, protect `main`. Delete the merged cloud branch `claude/optimistic-ride-kjpruf`.
 - Wire `ProtocolContractTest` (Java) into the gate's `protocol` stage and CI's `protocol-contract` job. Add the pre-`WELCOME` numbering line to PROTOCOL.md §2 (done in PRO-02).

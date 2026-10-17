@@ -108,6 +108,10 @@ Turn-based problem: a world's time only moves when its hero acts. If timers coun
 - **Rarity:** 1 guaranteed per region (seeded chest), plus possible shop stock. This makes it something players save up.
 - **Can't be used** on yourself.
 
+### 5.3 Revive with a Potion of Healing (owner's design, D-021)
+- **Throwing** a Potion of Healing at your ally's **ghost** while the ally is Downed (same floor, ghost visible) revives them **in place** at 25% HP. Drinking one yourself while Downed isn't possible (you're paralysed).
+- So **Healing** = revive here, needs you nearby. **Recall** = revive from any floor, at the region start (outside The Cell).
+
 ## 6. Potion of **Super Sync** ✅ (concept) / ❓ (control model)
 
 An emergency potion. The drinker's ghost **materializes** in the ally's world: it becomes visible and solid, and it can **attack the ally's monsters**.
@@ -151,6 +155,38 @@ apply hpLost, leave Remote View
 ```
 `SYNC_CMD` carries the `turn` number it answers, so stale commands are dropped. Combat math runs only in the ally's world.
 
+## 6A. World links (the owner's original design, carried over from the v3.3.8 prototype: D-021)
+
+These connect the two worlds directly. The ideas are the owner's. What changes is the implementation: everything that was turn-counted or client-trusted in the prototype is now decided by the **server**, and everything is co-op-only and floor-scoped.
+
+### 6A.1 Shared floor loot
+- Items that **level gen** places on a floor (seeded, so they're identical in both worlds, each with a stable `itemNetId` from DET-01) form **one shared pool**.
+- Picking one up sends a claim to the server. **First claim wins**, and the item disappears from the ally's world (now if they're on that floor, or when they get there). If the ally claimed it first, the pickup fails with "your ally took it".
+- **Mob drops and other runtime-generated loot stay per-player** (each world has its own mobs).
+
+### 6A.2 Drop to your ally
+- An item you **drop or throw to the floor** while your ally is on the **same floor** also appears in the ally's world, on the same cell, as a shared item (either player can claim it, exactly once). This is how players trade on the spot. The Item Shrine (§7) is for trading across floors.
+- Items consumed on impact (shattered potions, missiles that hit and break) aren't mirrored. A missile that ends up lying on the floor is.
+
+### 6A.3 Shared boss HP
+- On a boss floor, while **both** players are on it, each boss has **one HP pool held by the server**. Damage dealt in either world is reported, and the server broadcasts the pool, which both worlds apply. That keeps phases (e.g. thresholds) in sync, because they're driven by the shared HP.
+- The boss's HP pool is scaled for two attackers (start: HT × 1.8, tune in BAL). If only one player is on the boss floor, the fight is solo and normal.
+- The boss is dead when the pool hits 0, in both worlds.
+
+### 6A.4 Twin Door (co-op door)
+- A special door that opens only when **both players stand next to the same door cell, each in their own world, at the same time** (the server confirms both within a ~2 s window). It opens in both worlds. Used for mandatory co-op gates (§2.1) and co-op rooms.
+
+### 6A.5 Twin Switches room
+- A room with **two switches**. Each player steps on a *different* switch, and the server checks both presses land within a **~2 s real-time window** (the prototype compared two unrelated turn clocks, which was the bug). On success, the room's locked chest (an artifact) opens in both worlds.
+- While both players are inside this room, the ally ghost is drawn **fully opaque** (physical co-presence).
+
+### 6A.6 Door mirroring
+- Opening/closing a door (and breaking one) in your world does the same on that cell in the ally's world, but **only when the ally is on the same floor**, and only for door tiles (validated). Other terrain stays independent.
+
+### 6A.7 Co-op balance (co-op runs only, deterministic, tune in BAL)
+- **Mobs: HT × 1.2.**
+- **More food:** 30% of random item rolls become food, and the food category probabilities are 5.2 / 1.3 (pasty) instead of 4 / 1. This compensates for the shared loot pool. Applied inside co-op level gen (DET-01 keeps it identical in both worlds).
+
 ## 7. Co-op room catalog (puzzles)
 
 All rooms are seeded, appear in both worlds, use role A/B asymmetry, and keep their state on the server.
@@ -163,7 +199,9 @@ All rooms are seeded, appear in both worlds, use role A/B asymmetry, and keep th
 | **Rune Wall** | rune keypad | B reads 4 runes on a wall only visible in B's world | wrong code ×3 → spawns mobs, code rerolls |
 | **Totem Shield** (boss variant) | boss has a shield | B destroys a totem that only exists in B's world | the shield decays slowly by itself |
 | **Dark Floor** | darkness | B's ghost emits light in A's world (radius 2) | normal torches still work |
-| **Item Shrine** | — | either player sends 1 item to the other for a cost (gold/HP) | — |
+| **Item Shrine** | — | either player sends 1 item to the other for a cost (gold/HP), from any floor | — |
+| **Twin Door** (§6A.4) | door won't open | both stand next to it in their worlds within ~2 s | — (both must cooperate; used at gates) |
+| **Twin Switches** (§6A.5) | locked artifact chest | each steps on a different switch within ~2 s | retry anytime |
 
 New rooms must follow the template in §9.
 
@@ -208,6 +246,10 @@ Copy this into §7 / a new section:
 | Recall rarity | 1 guaranteed / region |
 | Optional Cell frequency | ~1 / 2 floors |
 | Disconnect grace before mission fails | 90 s |
+| Twin door / twin switches window | 2 s real time |
+| Boss shared HP scale (both present) | HT × 1.8 |
+| Co-op mob HP | HT × 1.2 |
+| Co-op food | 30% of random rolls → food; FOOD probs 5.2 / 1.3 |
 
 ## 11. Open questions ❓
 
