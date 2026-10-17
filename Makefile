@@ -87,10 +87,6 @@ worktree-remove:
 	fi
 	@./scripts/agent-worktree.sh remove "$(TASK)" $(if $(FORCE),--force,)
 
-# Stub until SRV-00 adds deploy/docker-compose.dev.yml.
+# Local server on :8080 (no TLS); see deploy/docker-compose.dev.yml.
 server-dev:
-	@if [ ! -f deploy/docker-compose.dev.yml ]; then \
-		echo "server-dev: deploy/docker-compose.dev.yml does not exist yet (SRV-00)"; \
-		exit 1; \
-	fi
 	docker compose -f deploy/docker-compose.dev.yml up --build

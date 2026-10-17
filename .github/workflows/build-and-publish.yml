@@ -1,0 +1,160 @@
+# .github/workflows/build-and-publish.yml — server image + deploy repo sync
+# (SRV-00, architecture §4.3, D-015).
+#
+# 1. image: build server/ and push ghcr.io/<owner>/spd-coop-server:<sha> and
+#    :latest (the package is public, so the VPS pulls without credentials).
+# 2. sync-deploy-repo: with a GitHub App token (secrets APP_ID,
+#    APP_PRIVATE_KEY; Contents + Workflows write on spd-coop-deploy only),
+#    copy deploy/ into the deploy repo, pin the image to <sha>, validate,
+#    commit and push. That push triggers the deploy repo's deploy.yml on the
+#    VPS runner. Without the App secrets (before OPS-01) this job is skipped
+#    with a notice instead of failing.
+name: Build and publish
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "server/**"
+      - "deploy/**"
+      - ".github/workflows/build-and-publish.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-and-publish
+  cancel-in-progress: false
+
+env:
+  DEPLOY_REPO: spd-coop-deploy
+
+jobs:
+  image:
+    name: Build and push the server image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.name.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # GHCR image names must be lowercase.
+      - name: Image name
+        id: name
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: echo "image=ghcr.io/${OWNER,,}/spd-coop-server" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: server
+          push: true
+          build-args: |
+            VERSION=${{ github.sha }}
+          tags: |
+            ${{ steps.name.outputs.image }}:${{ github.sha }}
+            ${{ steps.name.outputs.image }}:latest
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.licenses=GPL-3.0-or-later
+
+  sync-deploy-repo:
+    name: Sync the deploy repo
+    needs: image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for the GitHub App secrets
+        id: secrets
+        env:
+          APP_ID: ${{ secrets.APP_ID }}
+          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+        run: |
+          if [ -n "$APP_ID" ] && [ -n "$APP_PRIVATE_KEY" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice title=Deploy sync skipped::APP_ID / APP_PRIVATE_KEY are not set. The image was published, but ${DEPLOY_REPO} was not updated (set up the GitHub App in OPS-01)."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: GitHub App token
+        id: app-token
+        if: steps.secrets.outputs.enabled == 'true'
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ env.DEPLOY_REPO }}
+
+      - name: Checkout the main repo
+        if: steps.secrets.outputs.enabled == 'true'
+        uses: actions/checkout@v4
+        with:
+          path: src
+
+      - name: Checkout the deploy repo
+        if: steps.secrets.outputs.enabled == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/${{ env.DEPLOY_REPO }}
+          token: ${{ steps.app-token.outputs.token }}
+          ref: main
+          path: deploy-repo
+          persist-credentials: false
+
+      - name: Sync reference files and pin the image
+        if: steps.secrets.outputs.enabled == 'true'
+        run: |
+          set -euo pipefail
+          cp src/deploy/docker-compose.prod.yml deploy-repo/docker-compose.yml
+          sed -i "s|:IMAGE_TAG|:${GITHUB_SHA}|g" deploy-repo/docker-compose.yml
+          if grep -n 'IMAGE_TAG' deploy-repo/docker-compose.yml; then
+            echo "::error::IMAGE_TAG is still present in docker-compose.yml after substitution"
+            exit 1
+          fi
+          cp src/deploy/Caddyfile deploy-repo/Caddyfile
+          cp src/deploy/.env.example deploy-repo/.env.example
+          cp src/deploy/deploy-repo.gitignore deploy-repo/.gitignore
+          cp src/deploy/deploy-repo-README.md deploy-repo/README.md
+          mkdir -p deploy-repo/.github/workflows
+          cp src/deploy/deploy.yml deploy-repo/.github/workflows/deploy.yml
+
+      # A dummy .env (from .env.example) only for validation; removed before
+      # the commit and ignored by the deploy repo's .gitignore anyway.
+      - name: Validate docker-compose.yml
+        if: steps.secrets.outputs.enabled == 'true'
+        working-directory: deploy-repo
+        run: |
+          cp .env.example .env
+          trap 'rm -f .env' EXIT
+          docker compose config --quiet
+
+      - name: Commit and push
+        if: steps.secrets.outputs.enabled == 'true'
+        working-directory: deploy-repo
+        env:
+          TOKEN: ${{ steps.app-token.outputs.token }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "deploy repo already up to date; nothing to push"
+            exit 0
+          fi
+          git commit -m "deploy: sync and pin server image to ${GITHUB_SHA}"
+          git push "https://x-access-token:${TOKEN}@github.com/${OWNER}/${DEPLOY_REPO}.git" HEAD:main

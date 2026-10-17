@@ -1,0 +1,5 @@
+# .github/actionlint.yaml — actionlint config (SRV-00).
+# Custom labels of our self-hosted runners (deploy/deploy.yml runs on the VPS).
+self-hosted-runner:
+  labels:
+    - spd-coop-vps
