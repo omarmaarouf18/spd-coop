@@ -43,7 +43,10 @@ import java.util.concurrent.TimeUnit;
 //- every Listener callback runs on the MainThread (the GL thread in game, AGENTS.md rule 20).
 //Frames sent just before a connection drops can be lost on the wire; resending un-acked
 // messages after a reconnect is the protocol layer's job (seq/ack).
-public class CoopClient {
+//With queueWhileClosed = false (what CoopSession uses) nothing is queued: send() returns false
+// unless the socket is open, so the protocol's HELLO is always the first frame of a connection
+// (PROTOCOL.md §2.1) and the protocol layer decides what to resend.
+public class CoopClient implements FrameLink {
 
 	private static final String TAG = "CoopClient";
 
@@ -69,6 +72,7 @@ public class CoopClient {
 	private final Backoff backoff;
 	private final Listener listener;
 	private final ScheduledExecutorService scheduler;
+	private final boolean queueWhileClosed;
 
 	private final ArrayDeque<String> outbox = new ArrayDeque<>();
 	private State state = State.IDLE;
@@ -88,6 +92,12 @@ public class CoopClient {
 
 	public CoopClient( URI uri, CoopTransport.Factory transports, MainThread mainThread,
 					   Backoff backoff, Listener listener ) {
+		this( uri, transports, mainThread, backoff, listener, true );
+	}
+
+	public CoopClient( URI uri, CoopTransport.Factory transports, MainThread mainThread,
+					   Backoff backoff, Listener listener, boolean queueWhileClosed ) {
+		this.queueWhileClosed = queueWhileClosed;
 		this.uri = uri;
 		this.transports = transports;
 		this.mainThread = mainThread;
@@ -111,6 +121,8 @@ public class CoopClient {
 	}
 
 	//returns true if the frame was sent or queued, false if the client is stopped or the queue is full
+	// (without queueWhileClosed: false whenever the socket can't take it right now)
+	@Override
 	public synchronized boolean send( String text ) {
 		if (state == State.STOPPED) {
 			log( "send() after stop(), frame not sent" );
@@ -118,6 +130,9 @@ public class CoopClient {
 		}
 		if (state == State.OPEN && outbox.isEmpty() && transport.send( text )) {
 			return true;
+		}
+		if (!queueWhileClosed) {
+			return false;
 		}
 		if (outbox.size() >= MAX_QUEUED) {
 			log( "outbound queue full (" + MAX_QUEUED + "), frame rejected" );
@@ -127,7 +142,17 @@ public class CoopClient {
 		return true;
 	}
 
+	//drops the current connection; the normal close handling then reconnects with Backoff
+	@Override
+	public synchronized void reconnect() {
+		if ((state == State.OPEN || state == State.CONNECTING) && transport != null) {
+			log( "reconnect requested" );
+			transport.close();
+		}
+	}
+
 	//closes the connection for good: no reconnect, queued frames are discarded
+	@Override
 	public synchronized void stop() {
 		if (state == State.STOPPED) {
 			return;

@@ -26,12 +26,13 @@ coop/
 ├── Coop.java            # facade: isCoopRun(), role(), hooks called from upstream files
 ├── CoopRun.java         # persisted run state (Bundlable): coop flag, roomCode, playerId, role history
 ├── net/
-│   ├── CoopClient.java  # text frames: outbound queue (until open), reconnect w/ backoff, callbacks on MainThread (NET-01a)
+│   ├── CoopClient.java  # text frames, reconnect w/ backoff, callbacks on MainThread; FrameLink; no-queue mode for CoopSession (NET-01a/b)
 │   ├── CoopTransport.java / JavaWebSocketTransport.java  # one socket per attempt; Java-WebSocket 1.6.0 (NET-01a)
 │   ├── Backoff.java     # 1 s doubling to 30 s, jitter from its own java.util.Random (NET-01a)
 │   ├── MainThread.java  # Gdx.app.postRunnable in game; tests substitute it (NET-01a)
-│   ├── Protocol.java    # envelope + message types, version constants
-│   └── Dispatcher.java  # routes events to handlers on GL thread
+│   ├── Protocol.java    # protocol v1 envelope, types, strict decoder mirroring server/internal/protocol (NET-01b)
+│   ├── ProtocolJson.java # strict JSON keeping number spelling (1 vs 1.0, PROTOCOL.md §1) (NET-01b)
+│   └── CoopSession.java # HELLO/resume/epoch+ack, lobby requests, PING/liveness, REJECT/SESSION_REPLACED (NET-01b)
 ├── ghost/               # GhostAlly (visual), GhostSprite, ally compass/status
 ├── mission/             # Mission state mirror, CellMission, timers UI, forced-turn controller
 ├── rooms/               # CoopRoom base + MirrorLock, PressureBridge, Cell, ...
