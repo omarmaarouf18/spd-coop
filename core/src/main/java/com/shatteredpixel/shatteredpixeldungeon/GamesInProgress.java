@@ -23,6 +23,7 @@ package com.shatteredpixel.shatteredpixeldungeon;
 
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroSubClass;
+import com.shatteredpixel.shatteredpixeldungeon.coop.Coop;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.watabou.utils.Bundle;
 import com.watabou.utils.FileUtils;
@@ -55,6 +56,7 @@ public class GamesInProgress {
 	}
 	
 	public static String gameFolder( int slot ){
+		if (Coop.isCoopSlot( slot )) return Coop.gameFolder( slot ); // COOP: separate co-op save folders
 		return Messages.format(GAME_FOLDER, slot);
 	}
 	

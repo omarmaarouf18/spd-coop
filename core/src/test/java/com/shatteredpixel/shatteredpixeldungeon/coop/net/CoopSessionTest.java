@@ -151,6 +151,22 @@ class CoopSessionTest {
 		assertEquals( "run:c0ffee0123456789:snapshot", rec.events.get( rec.events.size() - 1 ) );
 	}
 
+	//regression (found by running the lobby UI, NET-01c): WndCoop redraws on onStateChanged and
+	// crashed with "room is null" because the state changed before the room was delivered
+	@Test
+	void theRoomIsDeliveredBeforeTheStateChanges() throws Exception {
+		welcomed();
+		rec.events.clear();
+		session.onMessage( roomState( 2, "lobby" ) );
+		assertEquals( "room:lobby", rec.events.get( 0 ) );
+		assertEquals( "state:IN_LOBBY", rec.events.get( 1 ) );
+
+		rec.events.clear();
+		session.onMessage( "{\"v\":1,\"t\":\"RUN_START\",\"seq\":3,\"p\":" + RUN + "}" );
+		assertEquals( "run:c0ffee0123456789:live", rec.events.get( 0 ) );
+		assertEquals( "state:RUNNING", rec.events.get( 1 ) );
+	}
+
 	@Test
 	void runStartMovesToRunning() throws Exception {
 		welcomed();
