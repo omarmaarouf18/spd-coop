@@ -78,3 +78,16 @@ To change a decision, add a new entry that supersedes it. Don't edit history.
   - **VPS:** a self-hosted Actions runner runs `deploy.yml` on every push: pre-flight `-check-env` → pull → up → health → automatic rollback.
   - Auth via a GitHub App (Contents + Workflows write on the deploy repo only).
 - **Consequence:** one more repo and a GitHub App to manage. The VPS has a minimal surface and deploys are fully automatic.
+
+### D-016 — Server libraries: coder/websocket + modernc.org/sqlite
+- **Status:** Accepted (2026-10-17, proposed in SRV-00)
+- **Decision:** Websocket via `github.com/coder/websocket` v1.8.15 (context-based, maintained, no deps). Storage via `modernc.org/sqlite` v1.60.1 (pure Go → static binary for distroless). One connection, WAL, `busy_timeout` 5 s, a `meta.schema_version` table, and a newer schema is refused.
+- **Alternatives:** `gorilla/websocket`, bbolt.
+
+### D-017 — Local-only testing until a VPS exists; OPS-01 split
+- **Status:** Accepted (2026-10-17)
+- **Context:** There's no domain or host yet. The owner wants to lay the foundation now and test everything locally.
+- **Decision:** All gameplay/network testing is local (desktop clients + `docker-compose.dev.yml` via `make server-dev`). OPS-01 is split:
+  - **Part 1 (now):** deploy repo, GitHub App + secrets, first `main` release (the image goes to GHCR, the sync goes to the deploy repo, plus the APK artifact).
+  - **Part 2 (deferred):** VPS, firewall, `deploybot`, DNS, self-hosted runner `spd-coop-vps`, first deploy, rollback drills A (pre-flight with a missing tag) and B (real rollback: internal health OK, Caddy 502).
+- **Consequence:** `deploy.yml` won't run until the runner exists. A push to the deploy repo queues a `deploy` job that no runner picks up, and GitHub cancels it after ~24 h. That shows as a cancelled run, which is expected and harmless until part 2.
