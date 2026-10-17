@@ -28,6 +28,11 @@ coop/
 ├── CoopConnection.java  # the one CoopSession + CoopClient of the game, 1 s tick, lobby state for the UI (NET-01c)
 ├── CoopProfile.java     # co-op level gen with a neutral player profile (all docs read, no intro), then restores it (NET-01c)
 ├── CoopSaves.java       # co-op save slots 101–106, folders coop1..coop6 (NET-01c)
+├── levelgen/            # co-op level gen: floors depend only on seed+depth+branch (D-019, DET-01)
+│   ├── CoopLevelGen.java    # Coop.generate's co-op path; stable-iteration helpers for the // COOP: hooks
+│   ├── LevelGenState.java   # Generator decks, LimitedDrops, special/secret room lists as one Bundle snapshot
+│   ├── CoopBalance.java     # D-021 balance inside co-op gen: mob HT x1.2, FOOD 5.2/1.3, 30% food cards
+│   └── CoopItemIds.java     # itemNetId = depth:branch:genIndex for every generated item (D-021, ITM-01)
 ├── net/
 │   ├── CoopClient.java  # text frames, reconnect w/ backoff, callbacks on MainThread; FrameLink; no-queue mode for CoopSession (NET-01a/b)
 │   ├── CoopTransport.java / JavaWebSocketTransport.java  # one socket per attempt; Java-WebSocket 1.6.0 (NET-01a)
@@ -53,6 +58,9 @@ Hooks in upstream files (each marked `// COOP:`). The expected list, to keep min
 - `Dungeon` init/newLevel/save/load → `Coop.onInit`, `Coop.generate`, `CoopRun` bundle (NET-01c)
 - `GamesInProgress.gameFolder` → co-op save folders; `Bones.get` → no remains in co-op runs (NET-01c)
 - `DesktopLauncher` → `LLPD_PROFILE=b` keeps a second local player's data apart (NET-01c)
+- `SecretLaboratoryRoom`, `SecretLibraryRoom`, `ShopRoom.ChooseBag` → `CoopLevelGen.stable(map)`; `VaultLevel` → `CoopLevelGen.shuffle(list)` / `stableOrder(array)` (DET-01)
+
+**Co-op level gen (D-019, DET-01).** In co-op runs `Coop.generate` runs `level.create()` on a dedicated level-gen state (Generator, LimitedDrops, special/secret room lists), saved in the `CoopRun` (`coop_levelgen`), which only level generation advances; the runtime state is restored right after (plus what gen spent: LimitedDrops counters, unique artifacts). Level gen sees a neutral hero (warrior, no items/talents/trinkets) and a neutral profile. HashMap iterations and JDK shuffles in level gen are order-stable/seeded. So floor N is the same in both worlds whatever each player did before. What still differs or is lost on purpose is listed in the DET-01 worklog.
 
 ## 3. Protocol (v1, JSON over wss)
 
@@ -109,7 +117,7 @@ These names are reserved in PROTOCOL.md §5.4 (a v1 server answers `ERROR{UNKNOW
 
 ### 3.5 Item network IDs
 Items that can cross worlds (keys, shrine items, Recall) get a stable `itemNetId`:
-- seeded items: `depth:genIndex` (assigned during level gen, identical on both clients);
+- seeded items: `depth:branch:genIndex` (assigned by co-op level gen, `CoopItemIds`, identical on both clients; DET-01);
 - runtime items: `playerId:counter`.
 The server keeps `itemNetId → owner` and rejects double transfers.
 
