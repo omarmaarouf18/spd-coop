@@ -63,7 +63,7 @@ Every message, in both directions:
 | time | int, Unix epoch milliseconds |
 | msg (free text) | string, at most 256 chars |
 | missionId, syncId | 16 lowercase hex chars `^[0-9a-f]{16}$` (like epoch, server-minted CSPRNG) |
-| itemNetId | `"<pool>:<n>"`: a two-part id, both parts decimal without a leading zero. `pool` is the DET-01 floor index (`1..255`) for level-gen loot, or 16 lowercase hex chars (a playerId) for runtime-minted items (shared drops, handed items). `n` is `1..9999999999`. Regex: `^(?:(?:[1-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|[0-9a-f]{16}):(?:(?:[1-9][0-9]{0,9}))$` |
+| itemNetId | `"<depth>:<branch>:<genIndex>"` for level-gen loot — the exact id DET-01's `CoopItemIds` mints; `depth` 1..30, `branch` 0..9, `genIndex` 0..9999999999, all decimal without a leading zero — or `"<playerId16hex>:<counter>"` for runtime-minted items (counter 1..9999999999). Regex: `^(?:(?:[12][0-9]|30|[1-9]):[0-9]:(?:0|[1-9][0-9]{0,9})|[0-9a-f]{16}:(?:[1-9][0-9]{0,9}))$` |
 | objectId, roomId | int 1..(2^53−1), a content-defined id minted by co-op level gen (DET-01); stable in both worlds |
 | entityId | int 1..(2^53−1), a StableActor id (§5.9) |
 | tile | int 0..255 (an SPD `Terrain` value) |
@@ -331,8 +331,8 @@ A → READY{heroClass:"WARRIOR", ready:true}    A,B ← ROOM_STATE
 B → READY{heroClass:"MAGE", ready:true}       A,B ← RUN_START{runId, seed, roleSeed, players}  then ROOM_STATE{phase:"running"}
 A → {"v":1,"t":"GHOST","seq":5,"depth":1,"branch":0,"p":{"pos":345,"anim":"run","hpPct":100,"heroClass":"WARRIOR","tier":0}}
 B ← {"v":1,"t":"GHOST","seq":7,"from":"a1…","depth":1,"branch":0,"p":{…same…}}
-A → {"v":1,"t":"CLAIM","seq":6,"depth":1,"branch":0,"p":{"itemNetId":"1:42"}}
-A ← {"v":1,"t":"CLAIMED","seq":9,"ack":6,"p":{"itemNetId":"1:42","by":"a1…"}}    B ← (same CLAIMED)
+A → {"v":1,"t":"CLAIM","seq":6,"depth":1,"branch":0,"p":{"itemNetId":"1:0:42"}}
+A ← {"v":1,"t":"CLAIMED","seq":9,"ack":6,"p":{"itemNetId":"1:0:42","by":"a1…"}}    B ← (same CLAIMED)
 A → {"v":1,"t":"MISSION_TRIGGER","seq":7,"depth":3,"branch":0,"p":{"kind":"CELL","trapCell":1207,"roomId":7}}
 A,B ← MISSION_START{missionId:"b1…",kind:"CELL",prisoner:"b1…",rescuer:"a1…",depth:3,branch:0,trapCell:1207,roomId:7,keySeed:…,startsAt:…,deadline:…,waveIntervalMs:30000}
 ```

@@ -273,7 +273,7 @@ class CoopSessionTest {
 		session.onMessage( "{\"v\":1,\"t\":\"MISSION_START\",\"seq\":2,\"p\":{\"missionId\":\"0fedcba987654321\",\"kind\":\"CELL\","
 				+ "\"prisoner\":\"" + PID + "\",\"rescuer\":\"" + ALLY + "\",\"depth\":3,\"branch\":0,\"trapCell\":1207,\"roomId\":7,"
 				+ "\"keySeed\":1,\"startsAt\":2,\"deadline\":3,\"waveIntervalMs\":30000}}" );
-		session.onMessage( "{\"v\":1,\"t\":\"CLAIMED\",\"seq\":3,\"p\":{\"itemNetId\":\"3:5\",\"by\":\"" + ALLY + "\"}}" );
+		session.onMessage( "{\"v\":1,\"t\":\"CLAIMED\",\"seq\":3,\"p\":{\"itemNetId\":\"3:1:5\",\"by\":\"" + ALLY + "\"}}" );
 		session.onMessage( "{\"v\":1,\"t\":\"SYNC_VIEW\",\"seq\":4,\"from\":\"" + ALLY + "\",\"depth\":3,\"branch\":0,"
 				+ "\"p\":{\"syncId\":\"0aaaaaaaaaaaa001\",\"turn\":12,\"terrainDiff\":[],\"entities\":[]}}" );
 		assertTrue( rec.events.contains( "event:MISSION_START" ) );
@@ -303,7 +303,8 @@ class CoopSessionTest {
 		assertFalse( key.p.containsKey( "item" ), "no blob with kind cell_key" );
 		assertEquals( "345", key.p.get( "toCell" ).toString() );
 
-		assertTrue( session.dropShare( 2, 0, 321, "0123456789abcdef:3", "blob" ) );
+		assertTrue( session.dropShare( 2, 0, 321, "2:0:3", "blob" ) );
+		assertEquals( "2:0:3", link.last().p.get( "itemNetId" ) );
 		assertTrue( session.downed( 4, 0, "SPIDER" ) );
 		assertTrue( session.useRecall( 2, 0, ALLY, "healing" ) );
 		assertTrue( session.syncDrink( 4, 0, "snapshot-data", 200 ) );

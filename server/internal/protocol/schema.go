@@ -331,8 +331,10 @@ var (
 	hexIDRe    = regexp.MustCompile(`^[0-9a-f]{16}$`)
 	tokenRe    = regexp.MustCompile(`^[A-Za-z0-9_-]{43}$`)
 	roomCodeRe = regexp.MustCompile(`^[` + RoomCodeAlphabet + `]{6}$`)
-	// itemNetIDRe is "<pool>:<n>" (§3): pool 1..255 or a playerId, n 1..9999999999.
-	itemNetIDRe = regexp.MustCompile(`^(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]?|[0-9a-f]{16}):[1-9][0-9]{0,9}$`)
+	// itemNetIDRe is §3: "<depth>:<branch>:<genIndex>" (depth 1..30, branch 0..9,
+	// genIndex 0..9999999999, per DET-01's CoopItemIds) or a runtime
+	// "<playerId16hex>:<counter>" (counter 1..9999999999).
+	itemNetIDRe = regexp.MustCompile(`^(?:(?:[12][0-9]|30|[1-9]):[0-9]:(?:0|[1-9][0-9]{0,9})|[0-9a-f]{16}:(?:[1-9][0-9]{0,9}))$`)
 )
 
 func formatted(re *regexp.Regexp, what string) check {
@@ -347,7 +349,7 @@ var (
 	hexID            = formatted(hexIDRe, "16 lowercase hex chars")
 	token            = formatted(tokenRe, "43 base64url chars")
 	roomCode         = formatted(roomCodeRe, "6 chars from "+RoomCodeAlphabet)
-	itemNet          = formatted(itemNetIDRe, `"<pool>:<n>" (floor index 1..255 or a playerId, then 1..9999999999)`)
+	itemNet          = formatted(itemNetIDRe, `"<depth>:<branch>:<genIndex>" or "<playerId>:<counter>" (§3)`)
 	opaqueBlob check = opaque
 )
 

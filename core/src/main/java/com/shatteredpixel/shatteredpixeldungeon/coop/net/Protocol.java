@@ -348,8 +348,11 @@ public final class Protocol {
 	private static final Pattern HEX_ID = Pattern.compile( "^[0-9a-f]{16}$" );
 	private static final Pattern TOKEN = Pattern.compile( "^[A-Za-z0-9_-]{43}$" );
 	private static final Pattern ROOM_CODE = Pattern.compile( "^[" + ROOM_CODE_ALPHABET + "]{6}$" );
-	//"<pool>:<n>" (§3): pool 1..255 or a playerId, n 1..9999999999, no leading zeros
-	private static final Pattern ITEM_NET_ID = Pattern.compile( "^(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]?|[0-9a-f]{16}):[1-9][0-9]{0,9}$" );
+	//itemNetId (§3): "<depth>:<branch>:<genIndex>" (depth 1..30, branch 0..9,
+	// genIndex 0..9999999999, per DET-01's CoopItemIds) or "<playerId16hex>:<counter>"
+	// (counter 1..9999999999), no leading zeros
+	private static final Pattern ITEM_NET_ID = Pattern.compile(
+			"^(?:(?:[12][0-9]|30|[1-9]):[0-9]:(?:0|[1-9][0-9]{0,9})|[0-9a-f]{16}:(?:[1-9][0-9]{0,9}))$" );
 
 	private static Check formatted( final Pattern re, final String what ) {
 		return new Check() {
@@ -365,7 +368,7 @@ public final class Protocol {
 	private static final Check token = formatted( TOKEN, "43 base64url chars" );
 	private static final Check roomCode = formatted( ROOM_CODE, "6 chars from " + ROOM_CODE_ALPHABET );
 	private static final Check itemNetId = formatted( ITEM_NET_ID,
-			"\"<pool>:<n>\" (floor index 1..255 or a playerId, then 1..9999999999)" );
+			"\"<depth>:<branch>:<genIndex>\" or \"<playerId>:<counter>\" (§3)" );
 
 	//opaque string field: at most MAX_OPAQUE bytes (§3)
 	private static final Check opaque = new Check() {

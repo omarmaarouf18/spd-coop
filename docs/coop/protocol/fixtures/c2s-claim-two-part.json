@@ -1,5 +1,5 @@
 {
-  "name": "c2s-claim-n-zero",
+  "name": "c2s-claim-two-part",
   "direction": "c2s",
   "valid": false,
   "reason": "bad_format",
@@ -11,7 +11,7 @@
     "depth": 1,
     "branch": 0,
     "p": {
-      "itemNetId": "12:0"
+      "itemNetId": "3:5"
     }
   }
 }

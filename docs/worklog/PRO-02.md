@@ -33,11 +33,18 @@ D-021 (owner docs; arrived while PRO-02 was in progress) grew the protocol. This
 - **Java contract test wired into the gate/CI/hook (hot paths):** the pre-push hook protocol stage runs both types (had a marked NET-01 TODO comment, now filled); `scripts/changed-scope.sh` maps `coop/net/**` (the package, not just Protocol.java) → protocol+java+server so any future session/protocol change triggers the contract tests too; `ci.yml` adds a Java step in `protocol-contract` (setup-java with the gate-config `jdk`, `./gradlew :core:test --tests '*ProtocolContract*'`).
 - architecture.md §3.4 rewritten from "reserved names" to the implemented map (PRO-01 left it stale), §3.5 itemNetId format updated to the pool notation.
 
+## Review fix — itemNetId aligned with DET-01
+The owner's review caught that my §3 `"<pool>:<n>"` invented a format DET-01 already defines. The merged `CoopItemIds.netId()` (dev, DET-01) mints `"<depth>:<branch>:<genIndex>"` with `genIndex` **starting at 0** (`assign()` initializes `index = 0`). §3, the regex, examples, fixtures and both decoders now use:
+- seeded: `"<depth>:<branch>:<genIndex>"`, depth 1..30, branch 0..9, genIndex 0..9999999999, decimal, no leading zeros (a bare `0` genIndex is legal);
+- runtime: `"<playerId16hex>:<counter>"`, counter 1..9999999999 (unchanged), so a 3-part hex id is invalid (`c2s-claim-runtime-three-part`).
+The CLAIM/CLAIMED/CLAIMS fixtures aim ids at the message's own floor (e.g. an envelope-depth-1 CLAIM claims `1:0:5`), the `CLAIMS`-too-many fixture answers floor 3/branch 1 with `3:1:<i>` ids, and the old `c2s-claim-n-zero`/`c2s-claim-pool-256` fixtures are repurposed/renamed to `c2s-claim-two-part`, `c2s-claim-depth-31`, `c2s-claim-depth-zero`, `c2s-claim-branch-10`. Fixture set: 189 files (81 valid, 108 invalid) — Go and Java both report exactly that. `CoopSessionTest` (CLAIMED sample + dropShare sample) and `s2c-claims-too-many` were updated to the same format.
+
 ## Changes per commit (subject only — NO SHAs)
 1. `PRO-02: wire the Java contract test into the gate and CI` (pre-push, changed-scope, ci.yml)
 2. `PRO-02: specify protocol v1.1 gameplay (missions, items, revive, sync, boss, terrain)` (PROTOCOL.md, architecture §3)
 3. `PRO-02: add v1.1 contract fixtures and mirror them in Go and Java` (fixtures, server/internal/protocol, core coop/net + tests)
 4. `PRO-02: worklog`
+5. `PRO-02: align itemNetId with DET-01 (depth:branch:genIndex)`
 
 ## Verification
 - `GOTOOLCHAIN=auto go test ./internal/protocol/`: 186 fixtures exercised (81 valid, 105 invalid).

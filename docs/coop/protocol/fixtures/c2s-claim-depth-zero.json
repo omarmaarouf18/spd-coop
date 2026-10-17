@@ -1,0 +1,17 @@
+{
+  "name": "c2s-claim-depth-zero",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "bad_format",
+  "field": "p.itemNetId",
+  "message": {
+    "v": 1,
+    "t": "CLAIM",
+    "seq": 9,
+    "depth": 1,
+    "branch": 0,
+    "p": {
+      "itemNetId": "0:1:0"
+    }
+  }
+}
