@@ -23,13 +23,13 @@ jobs:
     name: Assemble debug APK
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Read tools/versions.env
         id: versions
         run: grep -E '^[A-Z0-9_]+=' tools/versions.env >> "$GITHUB_OUTPUT"
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: ${{ steps.versions.outputs.JDK_VERSION }}
@@ -59,7 +59,7 @@ jobs:
           cp "${apks[0]}" "dist/$file"
           echo "file=$file" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.apk.outputs.file }}
           path: dist/${{ steps.apk.outputs.file }}
