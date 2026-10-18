@@ -212,15 +212,3 @@ func (r *room) twinAct(q request, p *protocol.TwinAct) {
 	}
 	g.twins[key] = &twinPress{slot: q.i, objectID: p.ObjectID, at: now}
 }
-
-// ---- door mirroring -------------------------------------------------------------
-
-func (r *room) terrain(q request, env protocol.Envelope, p *protocol.Terrain) {
-	if !protocol.IsDoorTile(p.Tile) {
-		r.hub.log.Debug("non-door TERRAIN dropped", "code", r.code, "player", q.id(), "tile", p.Tile)
-		return
-	}
-	if r.allyOnFloor(q.i, q.depth, q.branch) {
-		r.relayTo(r.ally(q.i), q, env, p)
-	}
-}

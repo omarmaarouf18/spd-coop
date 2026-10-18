@@ -27,6 +27,9 @@
 // Schema v3 (SRV-02): run_items (shared item ownership, PROTOCOL.md §5.7) and
 // run_state (the run's mission / Downed / Super Sync / boss engine state as
 // one JSON document), so they survive a restart too.
+// Schema v4 (SRV-03): run_kills (the shared mob kill registry, PROTOCOL.md
+// §5.11.1) and run_terrain (the permanent TERRAIN changes per floor,
+// §5.11.2).
 package store
 
 import (
@@ -43,7 +46,7 @@ import (
 )
 
 // SchemaVersion is the schema this binary migrates the database to.
-const SchemaVersion = 3
+const SchemaVersion = 4
 
 // Store wraps the SQLite database.
 type Store struct {
@@ -147,6 +150,29 @@ func (s *Store) migrate(ctx context.Context) error {
 		} {
 			if _, err := tx.ExecContext(ctx, stmt); err != nil {
 				return fmt.Errorf("migrate to v3: %w", err)
+			}
+		}
+	}
+
+	if current < 4 {
+		for _, stmt := range []string{
+			`CREATE TABLE run_kills (
+				run_id     TEXT NOT NULL REFERENCES runs(run_id),
+				mob_net_id TEXT NOT NULL,
+				killer     TEXT NOT NULL,
+				depth      INTEGER NOT NULL,
+				branch     INTEGER NOT NULL,
+				PRIMARY KEY (run_id, mob_net_id))`,
+			`CREATE TABLE run_terrain (
+				run_id TEXT NOT NULL REFERENCES runs(run_id),
+				depth  INTEGER NOT NULL,
+				branch INTEGER NOT NULL,
+				cell   INTEGER NOT NULL,
+				tile   INTEGER NOT NULL,
+				PRIMARY KEY (run_id, depth, branch, cell))`,
+		} {
+			if _, err := tx.ExecContext(ctx, stmt); err != nil {
+				return fmt.Errorf("migrate to v4: %w", err)
 			}
 		}
 	}
@@ -334,6 +360,81 @@ func (s *Store) Items(ctx context.Context, runID string) ([]Item, error) {
 			return nil, err
 		}
 		out = append(out, it)
+	}
+	return out, rows.Err()
+}
+
+// Kill is one row of run_kills: a shared mob and who killed it first.
+type Kill struct {
+	MobNetID string
+	Killer   string // playerId
+	Depth    int
+	Branch   int
+}
+
+// PutKill records a kill. The first kill of a mob wins: a later PutKill of
+// the same mobNetId keeps the stored killer.
+func (s *Store) PutKill(ctx context.Context, runID string, k Kill) error {
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO run_kills (run_id, mob_net_id, killer, depth, branch) VALUES (?, ?, ?, ?, ?)
+		 ON CONFLICT(run_id, mob_net_id) DO NOTHING`,
+		runID, k.MobNetID, k.Killer, k.Depth, k.Branch)
+	return err
+}
+
+// Kills returns every kill of a run, sorted by floor and mobNetId.
+func (s *Store) Kills(ctx context.Context, runID string) ([]Kill, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT mob_net_id, killer, depth, branch FROM run_kills
+		  WHERE run_id = ? ORDER BY depth, branch, mob_net_id`, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Kill
+	for rows.Next() {
+		var k Kill
+		if err := rows.Scan(&k.MobNetID, &k.Killer, &k.Depth, &k.Branch); err != nil {
+			return nil, err
+		}
+		out = append(out, k)
+	}
+	return out, rows.Err()
+}
+
+// TerrainChange is one row of run_terrain: the last permanent tile of a cell.
+type TerrainChange struct {
+	Depth  int
+	Branch int
+	Cell   int
+	Tile   int
+}
+
+// PutTerrain stores a cell's permanent tile; the last write wins.
+func (s *Store) PutTerrain(ctx context.Context, runID string, t TerrainChange) error {
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO run_terrain (run_id, depth, branch, cell, tile) VALUES (?, ?, ?, ?, ?)
+		 ON CONFLICT(run_id, depth, branch, cell) DO UPDATE SET tile = excluded.tile`,
+		runID, t.Depth, t.Branch, t.Cell, t.Tile)
+	return err
+}
+
+// Terrain returns every stored terrain change of a run, sorted by floor and cell.
+func (s *Store) Terrain(ctx context.Context, runID string) ([]TerrainChange, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT depth, branch, cell, tile FROM run_terrain
+		  WHERE run_id = ? ORDER BY depth, branch, cell`, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []TerrainChange
+	for rows.Next() {
+		var t TerrainChange
+		if err := rows.Scan(&t.Depth, &t.Branch, &t.Cell, &t.Tile); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
 	}
 	return out, rows.Err()
 }

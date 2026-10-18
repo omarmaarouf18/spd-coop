@@ -54,17 +54,20 @@ type game struct {
 	LastMissionEnd *protocol.MissionEnd `json:"lastMissionEnd,omitempty"`
 	LastSyncEnd    *protocol.SyncEnd    `json:"lastSyncEnd,omitempty"`
 
-	floors   [2]floor               // last floor each slot reported
-	items    map[string]*store.Item // itemNetId → record (also in run_items)
-	twins    map[twinKey]*twinPress // open twin windows
-	pausedAt int64                  // when the current pause began, 0 = not paused
+	floors   [2]floor                 // last floor each slot reported
+	items    map[string]*store.Item   // itemNetId → record (also in run_items)
+	kills    map[string]*store.Kill   // mobNetId → first kill (also in run_kills)
+	terrain  map[floorKey]map[int]int // floor → cell → permanent tile (also in run_terrain)
+	twins    map[twinKey]*twinPress   // open twin windows
+	pausedAt int64                    // when the current pause began, 0 = not paused
 	lastSave int64
 	wake     Timer
 	frames   [2][2]frameWindow // slot × (SYNC_VIEW, SYNC_CMD) per-second caps
 }
 
 func newGame() *game {
-	return &game{Downed: map[string]*gclock{}, items: map[string]*store.Item{}, twins: map[twinKey]*twinPress{}}
+	return &game{Downed: map[string]*gclock{}, items: map[string]*store.Item{}, twins: map[twinKey]*twinPress{},
+		kills: map[string]*store.Kill{}, terrain: map[floorKey]map[int]int{}}
 }
 
 // gclock is a pausable countdown: Deadline while running, Remaining (may be
@@ -240,6 +243,7 @@ func (r *room) restoreGame() {
 	for i := range items {
 		r.g.items[items[i].ItemNetID] = &items[i]
 	}
+	r.loadConnected(ctx)
 	blob, savedAt, err := st.RunState(ctx, r.run.RunID)
 	if errors.Is(err, store.ErrNotFound) {
 		return
@@ -256,7 +260,7 @@ func (r *room) restoreGame() {
 	if g.Downed == nil {
 		g.Downed = map[string]*gclock{}
 	}
-	g.items = r.g.items
+	g.items, g.kills, g.terrain = r.g.items, r.g.kills, r.g.terrain
 	if g.Mission != nil {
 		g.Mission.Clock.pause(savedAt)
 	}
@@ -271,7 +275,8 @@ func (r *room) restoreGame() {
 	g.pausedAt, g.lastSave = now, now
 	r.g = g
 	r.hub.log.Info("run state restored (paused)", "run", r.run.RunID,
-		"mission", g.Mission != nil, "downed", len(g.Downed), "items", len(g.items))
+		"mission", g.Mission != nil, "downed", len(g.Downed), "items", len(g.items),
+		"kills", len(g.kills), "terrainFloors", len(g.terrain))
 	r.rearm()
 }
 
@@ -333,6 +338,12 @@ func (r *room) play(sess *session, env protocol.Envelope, p protocol.Payload) st
 			r.twinAct(q, p)
 		case *protocol.Terrain:
 			r.terrain(q, env, p)
+		case *protocol.MobKilled:
+			r.mobKilled(q, p)
+		case *protocol.MobKillsReq:
+			r.mobKillsReq(q, p)
+		case *protocol.TerrainReq:
+			r.terrainReq(q, p)
 		}
 		r.rearm()
 	})
@@ -345,7 +356,8 @@ func isGame(p protocol.Payload) bool {
 	case *protocol.MissionTrigger, *protocol.Downed, *protocol.UseRecall,
 		*protocol.Claim, *protocol.ClaimsReq, *protocol.Give, *protocol.DropShare,
 		*protocol.SyncDrink, *protocol.SyncView, *protocol.SyncCmd, *protocol.SyncReport,
-		*protocol.BossEngage, *protocol.BossHit, *protocol.TwinAct, *protocol.Terrain:
+		*protocol.BossEngage, *protocol.BossHit, *protocol.TwinAct, *protocol.Terrain,
+		*protocol.MobKilled, *protocol.MobKillsReq, *protocol.TerrainReq:
 		return true
 	}
 	return false
