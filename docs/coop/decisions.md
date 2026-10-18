@@ -113,3 +113,9 @@ To change a decision, add a new entry that supersedes it. Don't edit history.
 - **Status:** Accepted (2026-10-17, owner: "I thought about these from every angle; the old stack was the problem, not the design")
 - **Decision:** all game mechanics of the prototype come back in the new design (game-design §5.3, §6A, §7, §10): shared floor loot (first claim wins), drop-to-ally on the same floor, shared boss HP pool, Twin Door, Twin Switches room (+ opaque ghost inside), door mirroring on the same floor, co-op balance (mobs ×1.2, more food), and revive by throwing a Potion of Healing at the downed ally's ghost.
 - **Implementation rules (what changes vs the prototype):** server-authoritative claims/windows/boss HP (no turn-clock comparisons, no client-trusted state), every message floor-scoped (`depth`/`branch`), stable `itemNetId`s from co-op level gen (DET-01), everything gated on the persisted co-op run flag, never on socket state.
+
+### D-022 — Forced turns never pause on the client; Downed expiry inside The Cell is not a real death
+- **Status:** Accepted (2026-10-18, from the MEC-00 review)
+- **Forced turns:** they keep running even with the pause menu open. Real absence (disconnect, app in background) is covered by the server pause (D-005). A client-side pause exception would let the prisoner freeze their world so the waves never reach them.
+- **Downed expiry inside a Cell mission:** `MISSION_END{failed, penalty}` takes precedence over `DOWNED_EXPIRED`. The prisoner is **not** killed. Both players get the penalty (gold −25%, `Mode.RETURN` to the region start), and the prisoner arrives there at 25% HP. Outside missions, `DOWNED_EXPIRED` runs the real death path per `COOP_DEATH_MODE` (default `player_out`). MEC-02 implements it, and PROTOCOL.md §5.8 is clarified there.
+- **Penalty timing:** a failed-mission penalty is applied once the hero isn't in a locked boss fight. A dead hero gets neither reward nor penalty.
