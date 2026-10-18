@@ -622,8 +622,10 @@ func TestTwinWindow(t *testing.T) {
 	a.collect()
 	b.quiet()
 	sw(b, 1, false) // released: withdrawn
+	b.collect()     // handled before A presses (two connections have no order)
 	sw(a, 2, true)
 	sw(a, 2, false) // released before B pressed
+	a.collect()     // A's press and release are handled before B presses
 	b.collect()
 	sw(b, 1, true)
 	a.collect()
