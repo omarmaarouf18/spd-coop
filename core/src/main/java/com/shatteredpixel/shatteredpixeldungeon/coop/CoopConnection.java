@@ -27,6 +27,7 @@ import com.badlogic.gdx.Application;
 import com.badlogic.gdx.Gdx;
 import com.shatteredpixel.shatteredpixeldungeon.coop.ghost.CoopGhosts;
 import com.shatteredpixel.shatteredpixeldungeon.coop.mission.CoopMissions;
+import com.shatteredpixel.shatteredpixeldungeon.coop.items.CoopItems;
 import com.shatteredpixel.shatteredpixeldungeon.coop.net.Backoff;
 import com.shatteredpixel.shatteredpixeldungeon.coop.net.CoopClient;
 import com.shatteredpixel.shatteredpixeldungeon.coop.net.CoopSession;
@@ -251,10 +252,12 @@ public final class CoopConnection {
 			CoopGhosts.onPresence( presence );
 		}
 
-		//mission / Downed / Super Sync lifecycle (MEC-00); CoopMissions ignores the other events
+		//server events: mission / Downed / Super Sync lifecycle (MEC-00) and
+		//CLAIMED / CLAIMS / DENY{taken} / DROP_SHARE / TRANSFER (ITM-01); each ignores the others' types
 		@Override
 		public void onServerEvent( Message m ) {
 			CoopMissions.onServerEvent( m );
+			CoopItems.onServerEvent( m );
 		}
 
 		@Override

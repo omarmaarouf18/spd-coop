@@ -134,7 +134,7 @@ public final class CoopFingerprint {
 		for (Mob mob : level.mobs) {
 			Bundle bundle = new Bundle();
 			bundle.put("mob", mob);
-			entries.add(mob.pos + ":" + bundle);
+			entries.add(mob.pos + ":" + withoutNetIds(bundle.toString()));
 		}
 		entries.sort(null);
 		return String.join("\n", entries);
@@ -162,7 +162,13 @@ public final class CoopFingerprint {
 	static String state(Item item) {
 		Bundle bundle = new Bundle();
 		bundle.put("item", item);
-		return bundle.toString();
+		return withoutNetIds(bundle.toString());
+	}
+
+	//since ITM-01 an item's bundle carries its itemNetId ("coop_net_id"); the ids are already the
+	// netIds component, so the state components stay what DET-01 recorded
+	static String withoutNetIds(String json) {
+		return json.replaceAll("\"coop_net_id\":\"[^\"]*\",?", "").replace(",}", "}");
 	}
 
 	private static String sha256(String text) {

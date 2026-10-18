@@ -27,6 +27,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Wraith;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.Shopkeeper;
+import com.shatteredpixel.shatteredpixeldungeon.coop.items.CoopItems;
 import com.shatteredpixel.shatteredpixeldungeon.effects.CellEmitter;
 import com.shatteredpixel.shatteredpixeldungeon.effects.Speck;
 import com.shatteredpixel.shatteredpixeldungeon.effects.particles.ElmoParticle;
@@ -142,6 +143,7 @@ public class Heap implements Bundlable {
 		} else if (sprite != null) {
 			sprite.view(this).place( pos );
 		}
+		CoopItems.onPickUp( this, item ); // COOP: shared floor loot (CLAIM)
 		
 		return item;
 	}

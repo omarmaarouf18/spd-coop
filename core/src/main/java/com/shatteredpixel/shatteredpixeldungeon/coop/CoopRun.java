@@ -24,6 +24,7 @@
 package com.shatteredpixel.shatteredpixeldungeon.coop;
 
 import com.shatteredpixel.shatteredpixeldungeon.coop.mission.MissionState;
+import com.shatteredpixel.shatteredpixeldungeon.coop.items.CoopItemsState;
 import com.watabou.utils.Bundlable;
 import com.watabou.utils.Bundle;
 
@@ -54,6 +55,8 @@ public class CoopRun implements Bundlable {
 
 	//the mirror of the server's missions, Downed windows and Super Sync (MEC-00, coop/mission)
 	public MissionState missions = new MissionState();
+	//shared items (ITM-01, coop/items): runtime id counter, unconfirmed claims, what each side took
+	public CoopItemsState items = new CoopItemsState();
 
 	private static final String RUN_ID = "coop_run_id";
 	private static final String SEED = "coop_seed";
@@ -69,6 +72,7 @@ public class CoopRun implements Bundlable {
 	private static final String ACK = "coop_ack";
 	private static final String LEVEL_GEN = "coop_levelgen";
 	private static final String MISSIONS = "coop_missions";
+	private static final String ITEMS = "coop_items";
 
 	@Override
 	public void storeInBundle( Bundle bundle ) {
@@ -86,6 +90,7 @@ public class CoopRun implements Bundlable {
 		bundle.put( ACK, ack );
 		if (levelGen != null) bundle.put( LEVEL_GEN, levelGen );
 		bundle.put( MISSIONS, missions );
+		bundle.put( ITEMS, items );
 	}
 
 	@Override
@@ -104,6 +109,13 @@ public class CoopRun implements Bundlable {
 		ack = bundle.getLong( ACK );
 		levelGen = bundle.contains( LEVEL_GEN ) ? bundle.getBundle( LEVEL_GEN ) : null;
 		missions = bundle.contains( MISSIONS ) ? (MissionState) bundle.get( MISSIONS ) : new MissionState();
+		items = new CoopItemsState();
+		if (bundle.contains( ITEMS )) {
+			items.restoreFromBundle( bundle.getBundle( ITEMS ) );
+		} else {
+			//saved before ITM-01: its items carry no itemNetId yet
+			items.legacy = true;
+		}
 	}
 
 	//"" in the bundle means "none" for the protocol

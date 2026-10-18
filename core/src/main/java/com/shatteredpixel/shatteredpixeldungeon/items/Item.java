@@ -34,6 +34,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Belongings;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Talent;
 import com.shatteredpixel.shatteredpixeldungeon.effects.Speck;
+import com.shatteredpixel.shatteredpixeldungeon.coop.items.CoopItems;
 import com.shatteredpixel.shatteredpixeldungeon.items.bags.Bag;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.MissileWeapon;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.darts.Dart;
@@ -139,6 +140,7 @@ public class Item implements Bundlable {
 		hero.spendAndNext(TIME_TO_DROP);
 		int pos = hero.pos;
 		Dungeon.level.drop(detachAll(hero.belongings.backpack), pos).sprite.drop(pos);
+		CoopItems.onDropped( this, pos ); // COOP: drop-to-ally (DROP_SHARE)
 	}
 
 	//resets an item's properties, to ensure consistency between runs
@@ -192,6 +194,7 @@ public class Item implements Bundlable {
 		if (!heap.isEmpty()) {
 			heap.sprite.drop( cell );
 		}
+		CoopItems.onDropped( this, cell ); // COOP: a thrown item at rest on the floor goes to the ally too
 	}
 	
 	//takes two items and merges them (if possible)
@@ -598,6 +601,7 @@ public class Item implements Bundlable {
 		}
 		bundle.put( KEPT_LOST, keptThoughLostInvent );
 		if (customNoteID != -1)     bundle.put(CUSTOM_NOTE_ID, customNoteID);
+		CoopItems.storeId( this, bundle ); // COOP: the itemNetId travels with the item
 	}
 	
 	@Override
@@ -624,6 +628,7 @@ public class Item implements Bundlable {
 
 		keptThoughLostInvent = bundle.getBoolean( KEPT_LOST );
 		if (bundle.contains(CUSTOM_NOTE_ID))    customNoteID = bundle.getInt(CUSTOM_NOTE_ID);
+		CoopItems.restoreId( this, bundle ); // COOP:
 	}
 
 	public int targetingPos( Hero user, int dst ){
