@@ -33,6 +33,7 @@ import com.shatteredpixel.shatteredpixeldungeon.coop.CoopConnection;
 import com.shatteredpixel.shatteredpixeldungeon.coop.ghost.AllyState;
 import com.shatteredpixel.shatteredpixeldungeon.coop.ghost.CoopGhosts;
 import com.shatteredpixel.shatteredpixeldungeon.coop.ghost.GhostAlly;
+import com.shatteredpixel.shatteredpixeldungeon.coop.ghost.GhostLayer;
 import com.shatteredpixel.shatteredpixeldungeon.coop.items.ScrollOfRecall;
 import com.shatteredpixel.shatteredpixeldungeon.coop.mission.CoopMissions;
 import com.shatteredpixel.shatteredpixeldungeon.coop.mission.ForcedTurns;
@@ -52,6 +53,7 @@ import com.shatteredpixel.shatteredpixeldungeon.scenes.InterlevelScene;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndMessage;
 import com.watabou.noosa.Game;
+import com.watabou.noosa.Group;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -190,7 +192,8 @@ public final class CoopDowned {
 
 		@Override
 		public void showFx( String allyId ) {
-			if (ShatteredPixelDungeon.scene() instanceof GameScene) ShatteredPixelDungeon.scene().add( new DownedFx( allyId ) );
+			GhostLayer layer = GhostLayer.current();
+			if (layer != null && ShatteredPixelDungeon.scene() instanceof GameScene) addFx( layer, allyId );
 		}
 
 		@Override
@@ -275,6 +278,29 @@ public final class CoopDowned {
 
 	static int regionStart( int depth ) {
 		return ((Math.max( 1, depth ) - 1) / 5) * 5 + 1;
+	}
+
+	// ---- the ally's ghost (GL thread) ----
+
+	//GhostLayer's constructor: a new layer (a new floor or a reload) while the ally is Downed gets
+	// the downed look again, from the mirror
+	public static void onGhostLayer( GhostLayer layer ) {
+		if (!Coop.isCoopRun()) return;
+		String ally = downedAlly();
+		if (ally != null) addFx( layer, ally );
+	}
+
+	//the downed look now on screen (null: none); one per layer, it lives and dies with the layer
+	private static DownedFx fx;
+
+	static DownedFx fx() {
+		return fx;
+	}
+
+	static void addFx( Group layer, String allyId ) {
+		if (fx != null && fx.alive && fx.parent == layer) return;
+		fx = new DownedFx( allyId );
+		layer.add( fx );
 	}
 
 	// ---- Hero.die (actor thread) ----

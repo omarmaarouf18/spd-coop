@@ -25,6 +25,7 @@ package com.shatteredpixel.shatteredpixeldungeon.coop.ghost;
 
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
+import com.shatteredpixel.shatteredpixeldungeon.coop.mission.downed.CoopDowned;
 import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
 import com.watabou.noosa.Group;
 
@@ -44,6 +45,7 @@ public class GhostLayer extends Group {
 		sprite.visible = false;
 		add( sprite );
 		current = this;
+		CoopDowned.onGhostLayer( this ); // MEC-02: a Downed ally's ghost keeps its downed look on a new layer
 	}
 
 	public static GhostLayer current() {

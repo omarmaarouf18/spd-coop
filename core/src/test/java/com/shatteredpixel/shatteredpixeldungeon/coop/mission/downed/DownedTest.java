@@ -39,6 +39,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Rat;
 import com.shatteredpixel.shatteredpixeldungeon.coop.Coop;
 import com.shatteredpixel.shatteredpixeldungeon.coop.CoopTestRuns;
+import com.shatteredpixel.shatteredpixeldungeon.coop.ghost.GhostLayer;
 import com.shatteredpixel.shatteredpixeldungeon.coop.items.ScrollOfRecall;
 import com.shatteredpixel.shatteredpixeldungeon.coop.mission.CoopMissions;
 import com.shatteredpixel.shatteredpixeldungeon.coop.mission.MissionState;
@@ -335,6 +336,36 @@ class DownedTest {
 		assertTrue( CoopDowned.onPotionThrown( new PotionOfHealing(), ghost ) );
 		assertEquals( List.of( DEPTH + " 0 " + ALLY + " healing" ), link.recalls );
 		assertNull( hero.buff( RecallPending.class ) );
+	}
+
+	// ---- the ally's ghost ----
+
+	@Test
+	void aNewGhostLayerKeepsTheDownedLookOnlyWhileTheAllyIsDowned() {
+		coopHero();
+		//the ally standing: a new layer gets nothing
+		GhostLayer standing = new GhostLayer();
+		assertFalse( hasFx( standing ) );
+
+		//the ally Downed (a new floor or a reload makes a new layer): the look is back, once
+		event( allyDowned( ALLY, 99_000 ) );
+		GhostLayer layer = new GhostLayer();
+		assertTrue( hasFx( layer ) );
+		assertEquals( ALLY, CoopDowned.fx().allyId() );
+		DownedFx first = CoopDowned.fx();
+		CoopDowned.addFx( layer, ALLY );
+		assertSame( first, CoopDowned.fx(), "no second one on the same layer" );
+
+		//up again: it goes away with the next frame, and a new layer gets none
+		event( revive( ALLY, CoopDowned.MODE_IN_PLACE ) );
+		layer.update();
+		assertFalse( hasFx( layer ) );
+		assertFalse( hasFx( new GhostLayer() ) );
+	}
+
+	private static boolean hasFx( GhostLayer layer ) {
+		DownedFx fx = CoopDowned.fx();
+		return fx != null && fx.alive && fx.parent == layer && layer.indexOf( fx ) >= 0;
 	}
 
 	// ---- saves ----
