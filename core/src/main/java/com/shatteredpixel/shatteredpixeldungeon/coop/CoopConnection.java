@@ -30,6 +30,7 @@ import com.shatteredpixel.shatteredpixeldungeon.coop.mission.CoopMissions;
 import com.shatteredpixel.shatteredpixeldungeon.coop.items.CoopItems;
 import com.shatteredpixel.shatteredpixeldungeon.coop.links.CoopLinks;
 import com.shatteredpixel.shatteredpixeldungeon.coop.mission.downed.CoopDowned;
+import com.shatteredpixel.shatteredpixeldungeon.coop.mobs.CoopMobs;
 import com.shatteredpixel.shatteredpixeldungeon.coop.net.Backoff;
 import com.shatteredpixel.shatteredpixeldungeon.coop.net.CoopClient;
 import com.shatteredpixel.shatteredpixeldungeon.coop.net.CoopSession;
@@ -238,6 +239,7 @@ public final class CoopConnection {
 			CoopRun current = Coop.run();
 			if (current != null && current.runId.equals( runInfo.get( "runId" ) )) {
 				//resumed into the run we're already playing
+				CoopMobs.onResumed();
 				return;
 			}
 			Coop.startRun( runInfo, playerId, resumeToken, epoch, url );
@@ -263,6 +265,7 @@ public final class CoopConnection {
 			CoopMissions.onServerEvent( m );
 			CoopItems.onServerEvent( m );
 			CoopLinks.onServerEvent( m );
+			CoopMobs.onServerEvent( m );
 		}
 
 		@Override

@@ -28,6 +28,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroSubClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mimic;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
+import com.shatteredpixel.shatteredpixeldungeon.coop.mobs.CoopMobs;
 import com.shatteredpixel.shatteredpixeldungeon.effects.FloatingText;
 import com.shatteredpixel.shatteredpixeldungeon.journal.Bestiary;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
@@ -60,6 +61,7 @@ public abstract class AllyBuff extends Buff {
 		Buff.affect(enemy, buffCls);
 
 		if (enemy.buff(buffCls) != null && wasEnemy){
+			CoopMobs.onTurnedAlly( enemy ); // COOP: turned into an ally = a kill for the ally's world (MOB-01)
 			enemy.rollToDropLoot();
 
 			Statistics.enemiesSlain++;
