@@ -25,6 +25,7 @@ import com.shatteredpixel.shatteredpixeldungeon.ShatteredPixelDungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.Imp;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.ImpShopkeeper;
+import com.shatteredpixel.shatteredpixeldungeon.coop.levelgen.overlay.CoopOverlay;
 import com.shatteredpixel.shatteredpixeldungeon.items.Heap;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
@@ -99,6 +100,7 @@ public class ImpShopRoom extends ShopRoom {
 	public void spawnShop(Level level){
 		impSpawned = true;
 		placeShopkeeper(level);
+		CoopOverlay.onImpShop(itemsToSpawn); // COOP: this player's sand bags and bag (DET-02)
 		placeItems(level);
 	}
 

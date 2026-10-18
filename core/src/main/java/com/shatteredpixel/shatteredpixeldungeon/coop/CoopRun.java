@@ -25,6 +25,7 @@ package com.shatteredpixel.shatteredpixeldungeon.coop;
 
 import com.shatteredpixel.shatteredpixeldungeon.coop.mission.MissionState;
 import com.shatteredpixel.shatteredpixeldungeon.coop.items.CoopItemsState;
+import com.shatteredpixel.shatteredpixeldungeon.coop.levelgen.overlay.OverlayState;
 import com.watabou.utils.Bundlable;
 import com.watabou.utils.Bundle;
 
@@ -57,6 +58,8 @@ public class CoopRun implements Bundlable {
 	public MissionState missions = new MissionState();
 	//shared items (ITM-01, coop/items): runtime id counter, unconfirmed claims, what each side took
 	public CoopItemsState items = new CoopItemsState();
+	//per-player overlay (DET-02, coop/levelgen/overlay): floors already entered, bags offered
+	public OverlayState overlay = new OverlayState();
 
 	private static final String RUN_ID = "coop_run_id";
 	private static final String SEED = "coop_seed";
@@ -73,6 +76,7 @@ public class CoopRun implements Bundlable {
 	private static final String LEVEL_GEN = "coop_levelgen";
 	private static final String MISSIONS = "coop_missions";
 	private static final String ITEMS = "coop_items";
+	private static final String OVERLAY = "coop_overlay";
 
 	@Override
 	public void storeInBundle( Bundle bundle ) {
@@ -91,6 +95,7 @@ public class CoopRun implements Bundlable {
 		if (levelGen != null) bundle.put( LEVEL_GEN, levelGen );
 		bundle.put( MISSIONS, missions );
 		bundle.put( ITEMS, items );
+		bundle.put( OVERLAY, overlay );
 	}
 
 	@Override
@@ -115,6 +120,13 @@ public class CoopRun implements Bundlable {
 		} else {
 			//saved before ITM-01: its items carry no itemNetId yet
 			items.legacy = true;
+		}
+		overlay = new OverlayState();
+		if (bundle.contains( OVERLAY )) {
+			overlay.restoreFromBundle( bundle.getBundle( OVERLAY ) );
+		} else {
+			//saved before DET-02: its floors were entered without the overlay
+			overlay.legacy = true;
 		}
 	}
 

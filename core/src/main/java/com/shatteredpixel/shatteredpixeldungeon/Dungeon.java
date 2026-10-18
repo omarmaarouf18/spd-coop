@@ -45,6 +45,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.Imp;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.Wandmaker;
 import com.shatteredpixel.shatteredpixeldungeon.coop.Coop;
 import com.shatteredpixel.shatteredpixeldungeon.coop.items.CoopItems;
+import com.shatteredpixel.shatteredpixeldungeon.coop.levelgen.overlay.CoopOverlay;
 import com.shatteredpixel.shatteredpixeldungeon.items.Amulet;
 import com.shatteredpixel.shatteredpixeldungeon.items.Generator;
 import com.shatteredpixel.shatteredpixeldungeon.items.Heap;
@@ -511,6 +512,7 @@ public class Dungeon {
 		
 		hero.curAction = hero.lastAction = null;
 
+		CoopOverlay.onLevelEntered( level ); // COOP: this player's own loot on their first entry (DET-02)
 		CoopItems.onLevelEntered( level ); // COOP: items the ally took leave this floor (CLAIMS)
 		observe();
 		try {
