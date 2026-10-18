@@ -33,14 +33,20 @@ import com.shatteredpixel.shatteredpixeldungeon.coop.CoopConnection;
 import com.shatteredpixel.shatteredpixeldungeon.coop.CoopRun;
 import com.shatteredpixel.shatteredpixeldungeon.coop.ghost.AllyState;
 import com.shatteredpixel.shatteredpixeldungeon.coop.ghost.CoopGhosts;
+import com.shatteredpixel.shatteredpixeldungeon.coop.mission.cell.BindingTrap;
+import com.shatteredpixel.shatteredpixeldungeon.coop.mission.cell.CellPrison;
 import com.shatteredpixel.shatteredpixeldungeon.coop.net.CoopSession;
 import com.shatteredpixel.shatteredpixeldungeon.coop.net.Protocol;
 import com.shatteredpixel.shatteredpixeldungeon.coop.net.Protocol.Message;
 import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
 import com.shatteredpixel.shatteredpixeldungeon.levels.Terrain;
+import com.shatteredpixel.shatteredpixeldungeon.levels.traps.Trap;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.watabou.noosa.Game;
 import com.watabou.noosa.audio.Sample;
+
+import java.util.List;
+import java.util.Map;
 
 //door mirroring (LINK-01, game-design §6A.6, PROTOCOL.md §5.10 TERRAIN).
 //A regular door that our hero opens or closes, or that burns in our world (whatever burnt it),
@@ -57,6 +63,22 @@ import com.watabou.noosa.audio.Sample;
 //  on a cell with a char or a heap on it (the same rule as Door.leave): it stays open.
 //- No echo: an applied change goes through Level.set, never through the hooks, and the hooks
 //  ignore anything while a change is being applied.
+//
+//Connected worlds (LINK-02, D-023, game-design §6A.10–§6A.11, PROTOCOL.md §5.11.2): permanent
+// changes go to the server with persist:true, whether or not the ally is on the floor (the server
+// stores them for the floor and relays them when the ally is there):
+//- Sent: a key (any key, the Skeleton Key too) unlocking a locked door (DOOR), a crystal door
+//  (EMPTY) or the locked exit (UNLOCKED_EXIT); a hero-locked door opened (DOOR); a door locked with
+//  the Skeleton Key (HERO_LKD_DR); a floor trap Trap.trigger consumed here (INACTIVE_TRAP); a hidden
+//  trap Level.discover revealed (TRAP). Never: the Binding Trap's trigger (MEC-01 spends it with
+//  MISSION_START; revealing it is sent), a door the Cell sealed (CellPrison).
+//- Reliable: a change that can't go out now (offline) waits in TerrainOutbox, in order, and goes
+//  out on the next server event, floor entry or resume.
+//- Applied (TERRAIN with persist, TERRAINS on floor entry): only along Protocol.terrainTransition
+//  (forward-only), never on a sealed Cell door, never consuming the Binding Trap, never locking or
+//  closing a door on a char or a heap. A trap is updated as an object too (consumed: inactive and
+//  visible; revealed: visible) without firing; no key is used. Idempotent: an applied tile can't
+//  apply again.
 public final class CoopLinks {
 
 	//the network and the GL thread, replaceable in tests
@@ -71,6 +93,14 @@ public final class CoopLinks {
 		boolean worldReady();
 		//redraw a changed cell and refresh the hero's view of it
 		void redraw( Level level, int cell, int tile );
+		//TERRAIN{persist:true} (LINK-02): false when it can't go out now
+		default boolean terrainPersist( int depth, int branch, int cell, int tile ) {
+			return false;
+		}
+		//TERRAIN_REQ (LINK-02): false when it can't go out now
+		default boolean terrainReq( int depth, int branch ) {
+			return false;
+		}
 	}
 
 	public static final Link LIVE = new Link() {
@@ -91,6 +121,18 @@ public final class CoopLinks {
 		public boolean terrain( int depth, int branch, int cell, int tile ) {
 			CoopSession s = session();
 			return s != null && s.terrain( depth, branch, cell, tile );
+		}
+
+		@Override
+		public boolean terrainPersist( int depth, int branch, int cell, int tile ) {
+			CoopSession s = session();
+			return s != null && s.terrain( depth, branch, cell, tile, true );
+		}
+
+		@Override
+		public boolean terrainReq( int depth, int branch ) {
+			CoopSession s = session();
+			return s != null && s.terrainReq( depth, branch );
 		}
 
 		@Override
@@ -120,6 +162,10 @@ public final class CoopLinks {
 	};
 
 	private static Link link = LIVE;
+	//permanent changes and floor requests that haven't gone out yet (GL thread only)
+	private static final TerrainOutbox outbox = new TerrainOutbox();
+	//a floor entry waits this many frames at most for the scene before asking anyway
+	static final int READY_WAIT = 600;
 	//a received change is being applied: the hooks stay quiet
 	private static boolean applying = false;
 	//the door the hero last opened (cell, depth, branch): a knockback (WandOfBlastWave.throwChar)
@@ -131,6 +177,7 @@ public final class CoopLinks {
 	public static void link( Link l ) {
 		link = l == null ? LIVE : l;
 		heroDoor = -1;
+		outbox.clear();
 	}
 
 	static boolean regularDoor( int tile ) {
@@ -185,7 +232,19 @@ public final class CoopLinks {
 	// ---- the ally's world changed (CoopConnection listener, GL thread) ----
 
 	public static void onServerEvent( Message m ) {
-		if (!Coop.isCoopRun() || !Protocol.TERRAIN.equals( m.t )) return;
+		if (!Coop.isCoopRun()) return;
+		//any server event means we're connected: send what's waiting
+		outbox.flush( link );
+		if (Protocol.TERRAIN.equals( m.t )) {
+			if (m.bool( "persist" )) onPersisted( m );
+			else onDoorChange( m );
+		} else if (Protocol.TERRAINS.equals( m.t )) {
+			onTerrains( m );
+		}
+	}
+
+	//LINK-01: a door opened, closed or burnt in the ally's world (relay only)
+	private static void onDoorChange( Message m ) {
 		if (m.from == null || m.from.equals( link.me() )) return;
 		Level level = Dungeon.level;
 		if (level == null || m.depth == null || m.branch == null
@@ -204,5 +263,147 @@ public final class CoopLinks {
 			applying = false;
 		}
 		link.redraw( level, cell, tile );
+	}
+
+	// ---- connected worlds (LINK-02) ----
+
+	//Hero.onOperateComplete, SkeletonKey: the door/exit at cell was just unlocked or locked; its
+	// new tile is the change (DOOR, EMPTY, UNLOCKED_EXIT, HERO_LKD_DR)
+	public static void onLockChanged( int cell ) {
+		if (!Coop.isCoopRun() || applying) return;
+		Level level = Dungeon.level;
+		if (level == null || cell < 0 || cell >= level.length() || sealable( level, cell )) return;
+		int tile = level.map[cell];
+		if (tile == Terrain.DOOR || tile == Terrain.EMPTY || tile == Terrain.UNLOCKED_EXIT || tile == Terrain.HERO_LKD_DR) {
+			persist( cell, tile );
+		}
+	}
+
+	//Trap.trigger, whatever stepped on it or set it off: a floor trap it consumed is consumed in
+	// the ally's world too (it fires only here). A trap that stays armed (gateway, flashing,
+	// gripping) isn't consumed anywhere.
+	public static void onTrapTriggered( Trap trap ) {
+		if (!Coop.isCoopRun() || applying || trap == null || trap instanceof BindingTrap) return;
+		Level level = Dungeon.level;
+		if (level == null || level.traps.get( trap.pos ) != trap) return;
+		if (level.map[trap.pos] == Terrain.INACTIVE_TRAP) persist( trap.pos, Terrain.INACTIVE_TRAP );
+	}
+
+	//Level.discover, before the cell changes: a hidden trap there is about to be revealed
+	// (searching, a scroll, a trap going off, anything)
+	public static void onDiscover( Level level, int cell ) {
+		if (!Coop.isCoopRun() || applying || level == null || level != Dungeon.level) return;
+		if (cell < 0 || cell >= level.length() || level.map[cell] != Terrain.SECRET_TRAP) return;
+		persist( cell, Terrain.TRAP );
+	}
+
+	//floor entry: ask for the floor's stored changes, once the floor is on screen
+	public static void onLevelEntered( Level level ) {
+		if (!Coop.isCoopRun() || level == null) return;
+		final int depth = Dungeon.depth, branch = Dungeon.branch;
+		link.post( () -> requestWhenReady( depth, branch, READY_WAIT ) );
+	}
+
+	//a resume that couldn't replay everything (WELCOME complete:false): what the ally changed on
+	// this floor meanwhile is only in the server's record
+	public static void onResumed() {
+		if (!Coop.isCoopRun() || Dungeon.level == null) return;
+		final int depth = Dungeon.depth, branch = Dungeon.branch;
+		link.post( () -> {
+			outbox.flush( link );
+			outbox.request( link, depth, branch );
+		} );
+	}
+
+	private static void requestWhenReady( int depth, int branch, int frames ) {
+		if (depth != Dungeon.depth || branch != Dungeon.branch) return;
+		if (!link.worldReady() && frames > 0) {
+			link.post( () -> requestWhenReady( depth, branch, frames - 1 ) );
+			return;
+		}
+		outbox.flush( link );
+		outbox.request( link, depth, branch );
+	}
+
+	private static void persist( final int cell, final int tile ) {
+		final int depth = Dungeon.depth, branch = Dungeon.branch;
+		link.post( () -> outbox.add( link, depth, branch, cell, tile ) );
+	}
+
+	//TERRAIN{persist:true} relayed from the ally
+	private static void onPersisted( Message m ) {
+		if (m.from == null || m.from.equals( link.me() )) return;
+		Level level = Dungeon.level;
+		if (level == null || m.depth == null || m.branch == null
+				|| m.depth != Dungeon.depth || m.branch != Dungeon.branch || !link.worldReady()) return;
+		apply( level, (int) m.num( "cell" ), (int) m.num( "tile" ) );
+	}
+
+	//TERRAINS: the floor's record (the answer to our TERRAIN_REQ); our own changes are in it too,
+	// and apply as no-ops
+	@SuppressWarnings("unchecked")
+	private static void onTerrains( Message m ) {
+		Level level = Dungeon.level;
+		if (level == null || m.num( "depth" ) != Dungeon.depth || m.num( "branch" ) != Dungeon.branch
+				|| !link.worldReady()) return;
+		Object changes = m.p.get( "changes" );
+		if (!(changes instanceof List)) return;
+		for (Object o : (List<Object>) changes) {
+			if (!(o instanceof Map)) continue;
+			Map<String, Object> c = (Map<String, Object>) o;
+			apply( level, (int) asLong( c.get( "cell" ) ), (int) asLong( c.get( "tile" ) ) );
+		}
+	}
+
+	//one change, if it moves the cell forward here. True if applied.
+	static boolean apply( Level level, int cell, int tile ) {
+		if (cell < 0 || cell >= level.length() || !Protocol.isTerrainTile( tile )) return false;
+		int current = level.map[cell];
+		if (current == tile || !Protocol.terrainTransition( current, tile )) return false;
+		//a door the Cell sealed in our world stays sealed
+		if (current == Terrain.LOCKED_DOOR && sealable( level, cell )) return false;
+		Trap trap = level.traps.get( cell );
+		if (tile == Terrain.INACTIVE_TRAP && trap instanceof BindingTrap) return false;
+		//never shut or lock a door on something
+		if ((tile == Terrain.HERO_LKD_DR || (tile == Terrain.DOOR && current == Terrain.OPEN_DOOR))
+				&& (Actor.findChar( cell ) != null || level.heaps.get( cell ) != null)) return false;
+
+		applying = true;
+		try {
+			Level.set( cell, tile, level );
+			if (trap != null && tile == Terrain.INACTIVE_TRAP) {
+				trap.active = false;
+				trap.visible = true;
+			} else if (trap != null && tile == Terrain.TRAP) {
+				trap.visible = true;
+			}
+		} finally {
+			applying = false;
+		}
+		link.redraw( level, cell, tile );
+		return true;
+	}
+
+	//a door of the Binding Trap's room while our hero is the Cell's prisoner (CellPrison seals
+	// them with Level.set; MEC-01 keeps the seal in this world only)
+	static boolean sealable( Level level, int cell ) {
+		Hero hero = Dungeon.hero;
+		if (hero == null || hero.buff( CellPrison.class ) == null) return false;
+		for (Trap t : level.traps.valueList()) {
+			if (!(t instanceof BindingTrap)) continue;
+			for (int door : ((BindingTrap) t).doors) {
+				if (door == cell) return true;
+			}
+		}
+		return false;
+	}
+
+	private static long asLong( Object v ) {
+		if (v instanceof Number) return ((Number) v).longValue();
+		try {
+			return v == null ? -1 : Long.parseLong( v.toString() );
+		} catch (NumberFormatException e) {
+			return -1;
+		}
 	}
 }

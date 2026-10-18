@@ -31,6 +31,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Regeneration;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Talent;
+import com.shatteredpixel.shatteredpixeldungeon.coop.links.CoopLinks;
 import com.shatteredpixel.shatteredpixeldungeon.effects.BlobEmitter;
 import com.shatteredpixel.shatteredpixeldungeon.effects.CellEmitter;
 import com.shatteredpixel.shatteredpixeldungeon.effects.Speck;
@@ -159,6 +160,7 @@ public class SkeletonKey extends Artifact {
 							public void call() {
 								Buff.affect(curUser, KeyReplacementTracker.class).processIronLockOpened();
 								Level.set(target, Terrain.DOOR);
+								CoopLinks.onLockChanged( target ); // COOP: unlocked in the ally's world too (LINK-02)
 								GameScene.updateMap(target);
 								charge -= 1;
 								gainExp(2 + 1);
@@ -177,6 +179,7 @@ public class SkeletonKey extends Artifact {
 							@Override
 							public void call() {
 								Level.set(target, Terrain.DOOR);
+								CoopLinks.onLockChanged( target ); // COOP: opened in the ally's world too (LINK-02)
 								GameScene.updateMap(target);
 								//no charge cost, no artifact on-use
 								curUser.spendAndNext(Actor.TICK);
@@ -197,6 +200,7 @@ public class SkeletonKey extends Artifact {
 							public void call() {
 								Buff.affect(curUser, KeyReplacementTracker.class).processCrystalLockOpened();
 								Level.set(target, Terrain.EMPTY);
+								CoopLinks.onLockChanged( target ); // COOP: unlocked in the ally's world too (LINK-02)
 								GameScene.updateMap(target);
 								charge -= 5;
 								gainExp(2 + 5);
@@ -259,6 +263,7 @@ public class SkeletonKey extends Artifact {
 							@Override
 							public void call() {
 								Level.set(target, Terrain.HERO_LKD_DR);
+								CoopLinks.onLockChanged( target ); // COOP: locked in the ally's world too (LINK-02)
 								GameScene.updateMap(target);
 								charge -= 2;
 								gainExp(2);
