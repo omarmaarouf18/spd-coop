@@ -80,6 +80,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Monk;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Snake;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.Imp;
 import com.shatteredpixel.shatteredpixeldungeon.coop.Coop;
+import com.shatteredpixel.shatteredpixeldungeon.coop.links.CoopLinks;
 import com.shatteredpixel.shatteredpixeldungeon.coop.mission.CoopMissions;
 import com.shatteredpixel.shatteredpixeldungeon.coop.mission.cell.CoopCell;
 import com.shatteredpixel.shatteredpixeldungeon.effects.CellEmitter;
@@ -2448,6 +2449,7 @@ public class Hero extends Char {
 				}
 				
 				if (hasKey) {
+					CoopLinks.onLockChanged( doorCell ); // COOP: the door unlocks in the ally's world too (LINK-02)
 					GameScene.updateKeyDisplay();
 					GameScene.updateMap(doorCell);
 					spend(Key.TIME_TO_UNLOCK);

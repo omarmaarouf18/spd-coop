@@ -24,6 +24,7 @@ package com.shatteredpixel.shatteredpixeldungeon.levels.traps;
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.FlavourBuff;
+import com.shatteredpixel.shatteredpixeldungeon.coop.links.CoopLinks;
 import com.shatteredpixel.shatteredpixeldungeon.journal.Bestiary;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
@@ -107,6 +108,7 @@ public abstract class Trap implements Bundlable {
 	public abstract void activate();
 
 	public void disarm(){
+		CoopLinks.onTrapDisarmed( this ); // COOP: used up (not fired) in the ally's world too (LINK-02)
 		active = false;
 		Dungeon.level.disarmTrap(pos);
 	}

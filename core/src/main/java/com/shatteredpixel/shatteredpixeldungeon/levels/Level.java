@@ -1111,6 +1111,7 @@ public abstract class Level implements Bundlable {
 	}
 
 	public void discover( int cell ) {
+		CoopLinks.onDiscover( this, cell ); // COOP: a hidden trap is revealed in the ally's world too (LINK-02)
 		set( cell, Terrain.discover( map[cell] ) );
 		Trap trap = traps.get( cell );
 		if (trap != null)

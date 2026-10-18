@@ -26,6 +26,7 @@ package com.shatteredpixel.shatteredpixeldungeon.coop;
 import com.shatteredpixel.shatteredpixeldungeon.coop.mission.MissionState;
 import com.shatteredpixel.shatteredpixeldungeon.coop.items.CoopItemsState;
 import com.shatteredpixel.shatteredpixeldungeon.coop.levelgen.overlay.OverlayState;
+import com.shatteredpixel.shatteredpixeldungeon.coop.links.TerrainOutbox;
 import com.watabou.utils.Bundlable;
 import com.watabou.utils.Bundle;
 
@@ -60,6 +61,8 @@ public class CoopRun implements Bundlable {
 	public CoopItemsState items = new CoopItemsState();
 	//per-player overlay (DET-02, coop/levelgen/overlay): floors already entered, bags offered
 	public OverlayState overlay = new OverlayState();
+	//permanent terrain changes not sent yet (LINK-02, coop/links), in order
+	public TerrainOutbox terrainOutbox = new TerrainOutbox();
 
 	private static final String RUN_ID = "coop_run_id";
 	private static final String SEED = "coop_seed";
@@ -77,6 +80,7 @@ public class CoopRun implements Bundlable {
 	private static final String MISSIONS = "coop_missions";
 	private static final String ITEMS = "coop_items";
 	private static final String OVERLAY = "coop_overlay";
+	private static final String TERRAIN_OUTBOX = "coop_terrain_outbox";
 
 	@Override
 	public void storeInBundle( Bundle bundle ) {
@@ -96,6 +100,7 @@ public class CoopRun implements Bundlable {
 		bundle.put( MISSIONS, missions );
 		bundle.put( ITEMS, items );
 		bundle.put( OVERLAY, overlay );
+		bundle.put( TERRAIN_OUTBOX, terrainOutbox );
 	}
 
 	@Override
@@ -128,6 +133,8 @@ public class CoopRun implements Bundlable {
 			//saved before DET-02: its floors were entered without the overlay
 			overlay.legacy = true;
 		}
+		terrainOutbox = new TerrainOutbox();
+		if (bundle.contains( TERRAIN_OUTBOX )) terrainOutbox.restoreFromBundle( bundle.getBundle( TERRAIN_OUTBOX ) );
 	}
 
 	//"" in the bundle means "none" for the protocol
