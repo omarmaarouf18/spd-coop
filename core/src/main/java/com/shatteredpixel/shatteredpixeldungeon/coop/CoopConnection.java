@@ -38,6 +38,7 @@ import com.watabou.noosa.Game;
 import com.watabou.utils.GameSettings;
 
 import java.net.URI;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -182,6 +183,21 @@ public final class CoopConnection {
 		if (ui != null) ui.onUpdate();
 	}
 
+	//the ally's "connected" in a RoomState; null when the room doesn't list them (or we don't know who we are)
+	@SuppressWarnings("unchecked")
+	static Boolean allyConnectedIn( Map<String, Object> room, String me ) {
+		Object players = room == null ? null : room.get( "players" );
+		if (!(players instanceof List) || me == null) return null;
+		for (Object o : (List<Object>) players) {
+			if (!(o instanceof Map)) continue;
+			Map<String, Object> p = (Map<String, Object>) o;
+			if (!me.equals( p.get( "playerId" ) ) && p.get( "connected" ) instanceof Boolean) {
+				return (Boolean) p.get( "connected" );
+			}
+		}
+		return null;
+	}
+
 	private static final class SessionListener implements CoopSession.Listener {
 
 		@Override
@@ -205,11 +221,16 @@ public final class CoopConnection {
 		@Override
 		public void onRoomState( Map<String, Object> r ) {
 			room = r;
+			//a fresh run start sends no ALLY_STATUS: the room snapshot says whether the ally is connected
+			Boolean ally = allyConnectedIn( r, playerId );
+			if (ally != null) allyConnected = ally;
 			notifyUi();
 		}
 
 		@Override
 		public void onRunStart( Map<String, Object> runInfo, boolean fromSnapshot ) {
+			//a live RUN_START only goes out when both players are connected (PROTOCOL.md §6)
+			if (!fromSnapshot) allyConnected = true;
 			CoopRun current = Coop.run();
 			if (current != null && current.runId.equals( runInfo.get( "runId" ) )) {
 				//resumed into the run we're already playing
