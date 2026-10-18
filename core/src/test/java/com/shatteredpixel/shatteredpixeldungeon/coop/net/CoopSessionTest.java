@@ -243,6 +243,20 @@ class CoopSessionTest {
 	}
 
 	@Test
+	void welcomeAndPongReportTheServerTimeWithTheLocalReceiveTime() throws Exception {
+		session.onConnected();
+		now = 1_000_100;
+		session.onMessage( welcome( 1, EPOCH, TOKEN, "" ) );
+		assertTrue( rec.events.contains( "time:1@1000100" ), "WELCOME.serverTime" );
+		//before the WELCOME's room/run snapshot is handed on, so replayed deadlines can be converted
+		assertTrue( rec.events.indexOf( "time:1@1000100" ) < rec.events.indexOf( "state:READY" ) );
+
+		now = 1_010_250;
+		session.onMessage( "{\"v\":1,\"t\":\"PONG\",\"seq\":2,\"p\":{\"t\":1010000,\"serverTime\":1700000000123}}" );
+		assertEquals( "time:1700000000123@1010250", rec.events.get( rec.events.size() - 1 ), "PONG.serverTime" );
+	}
+
+	@Test
 	void presenceIsRelayedAndSentWithItsFloor() throws Exception {
 		welcomed();
 		session.onMessage( "{\"v\":1,\"t\":\"GHOST\",\"seq\":2,\"from\":\"" + ALLY + "\",\"depth\":3,\"branch\":0,"
@@ -422,6 +436,11 @@ class CoopSessionTest {
 		@Override
 		public void onServerEvent( Message m ) {
 			events.add( "event:" + m.t );
+		}
+
+		@Override
+		public void onServerTime( long serverTime, long localNow ) {
+			events.add( "time:" + serverTime + "@" + localNow );
 		}
 
 		@Override

@@ -79,6 +79,9 @@ public class CoopSession implements CoopClient.Listener {
 		// broadcasts and the relayed DROP_SHARE / SYNC_VIEW / SYNC_CMD / TERRAIN.
 		// The receiver ignores messages for a floor it is not on (AGENTS.md §3.6).
 		default void onServerEvent( Message m ) {}
+		//WELCOME.serverTime / PONG.serverTime (server Unix ms) and our clock when it arrived (MEC-00:
+		// the offset that turns the server's mission deadlines into local time)
+		default void onServerTime( long serverTime, long localNow ) {}
 		//ERROR: the request failed, the connection stays open
 		void onServerError( String code, String msg );
 		//stopped for good: REJECT{VERSION_MISMATCH|BAD_MESSAGE} or ERROR{SESSION_REPLACED}
@@ -360,8 +363,10 @@ public class CoopSession implements CoopClient.Listener {
 			error( m );
 		} else if (Protocol.REJECT.equals( t )) {
 			reject( m );
+		} else if (Protocol.PONG.equals( t )) {
+			//receiving it already refreshed lastServerMessage
+			listener.onServerTime( m.num( "serverTime" ), clock.now() );
 		}
-		//PONG: nothing to do, receiving it already refreshed lastServerMessage
 	}
 
 	@Override
@@ -385,6 +390,8 @@ public class CoopSession implements CoopClient.Listener {
 		epoch = newEpoch;
 		lastPing = clock.now();
 		listener.onCredentials( playerId, resumeToken, epoch );
+		//before the snapshot and the replayed events, so their deadlines convert with this epoch's clock
+		listener.onServerTime( m.num( "serverTime" ), clock.now() );
 
 		Map<String, Object> room = m.obj( "room" );
 		Map<String, Object> run = m.obj( "run" );
