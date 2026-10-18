@@ -90,3 +90,60 @@ All with `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64` (no JDK 25 in this conta
 2. **Resume with `complete:false`:** `WELCOME.complete` isn't exposed outside `coop/net` (`CoopSession.welcome` reads only epoch/credentials/time/snapshots). Options: (a) a one-line `CoopLinks.onResumed()` on every transition to `RUNNING` in `CoopConnection`'s `onStateChanged` (harmless: the apply is idempotent); (b) expose `complete` from `CoopSession` (a `coop/net` change). Which one?
 3. **Offline changes across an app restart:** the outbox is in memory. Persisting it needs a field in `CoopRun` (not in lane, like ITM-01's `coop_items`). Grant it?
 4. **Traps consumed outside `Trap.trigger`:** Flock/Summoning/Distortion chain triggers, Reclaim Trap, Timekeeper's Hourglass freeze and Swiftthistle all call `trap.disarm()` directly. Moving the hook to `Trap.disarm()` (same file, one line, also covers `trigger`) catches them all. Grant?
+
+## Round 2 — owner answers (2026-10-18)
+Answers: 1 approved (one line in `Dungeon.switchLevel` next to ITM-01's); 2 option (a), with no double request on the same transition; 3 approved (`coop_terrain_outbox` in `CoopRun`); 4 approved with conditions (one hook for 19 in `Trap.disarm()`, the `Trap.trigger` hook removed).
+
+### Hooks now (final)
+- `Dungeon.switchLevel`: `CoopLinks.onLevelEntered( level ); // COOP: (LINK-02) …`, right after ITM-01's line (+ import).
+- `coop/CoopConnection.onStateChanged`: `if (state == CoopSession.State.RUNNING) CoopLinks.onResumed(); // LINK-02: …` (one line; this file already imports `CoopLinks`).
+- `levels/traps/Trap.java`: the `trigger` hook is removed; `disarm()` has `CoopLinks.onTrapDisarmed( this )` as its **first** line, so it sees the trap before `active = false` and the tile change. `trigger()` calls `disarm()`, so the old trigger path is covered too.
+- `coop/CoopRun.java`: field `terrainOutbox` + key `coop_terrain_outbox` (store, and restore when present; an old save has none, so the outbox is empty).
+- Unchanged: `Hero.java` (1), `SkeletonKey.java` (4), `Level.discover` (1).
+
+### Design changes
+- **19 from `Trap.disarm`**: `onTrapDisarmed(trap)` sends only if all of these hold:
+  - a co-op run, not while applying a received change (no echo: the incoming path never calls `disarm`);
+  - not a `BindingTrap`: MEC-01 disarms it in both worlds on `MISSION_START`;
+  - `Dungeon.level` and `Dungeon.hero` are set and the world is on screen (`link.worldReady()`: never during level gen, a level load or bundle restore);
+  - the trap is still `active`, is `Dungeon.level`'s trap at its cell, and its tile is `TRAP`/`SECRET_TRAP`.
+
+  Permanent traps (Gateway/Flashing/Gripping) never call `disarm` when they fire. A Reclaim Trap disarms any trap it takes (a permanent one too), and that counts as used up: it sends 19.
+- **In-flight `TERRAIN_REQ`**:
+  - `connection` counts transitions to `RUNNING`. It is bumped **synchronously** in `onResumed()`, so a request already queued for the GL thread when the transition happens goes out on this connection.
+  - `inFlight` = {depth, branch, connection} of the last request sent. `request()` skips a floor already in flight on the current connection; `TERRAINS` for the floor clears it.
+  - So: entering a floor and reaching `RUNNING` together (either order) → one request. A save loaded offline → the entry's request waits in the outbox and the connection sends it once. A request lost with a dropped connection → the reconnect asks again.
+- **Outbox persisted**: `TerrainOutbox` is now `Bundlable` (flat `int[]` of depth/branch/cell/tile quadruples, in order) and lives in `CoopRun`. A change leaves only after `terrainPersist` returned true. The pending floor request isn't saved (the next entry or reconnect asks again). Its methods are `synchronized`, because saving can run on the loading thread.
+
+### Changes per commit (round 2, subject only — NO SHAs)
+4. `LINK-02: wire TERRAIN_REQ on floor entry and RUNNING, persist the outbox, send 19 from Trap.disarm`
+5. `LINK-02: game-design §6A.10-§6A.11 after round 2`
+6. `LINK-02: worklog (round 2)`
+
+### Verification (round 2)
+JDK 21. Literal outputs are in the final report.
+- `CoopLinksTerrainTest` now has 17 tests. New ones:
+  - `everyWayATrapIsUsedUpSends19ExactlyOnce`: Timekeeper's Hourglass `timeFreeze.disarmPresses()` and Swiftthistle `TimeBubble.disarmPresses()` each send 19 once without firing; `ReclaimTrap.affectTarget` (by reflection, protected) on a `GatewayTrap` sends 19 once (headless, it stops after the disarm with an NPE in what follows); a second `disarm()` sends nothing.
+  - `chainedTrapsSend19Once`: the real `SummoningTrap` and `DistortionTrap` `trigger()` with a test trap on all 8 neighbours. For each, fixed gameplay seeds 1..50 are tried in order until one reaches a chained trap: some rolls hit a sprite/emitter (Wraith, `ScrollOfTeleportation.appear`) before or after the chain, headless. Every trap that went off sent 19 exactly once and fired once.
+  - `flocksChainStatementsSend19Once`: **a replica**. `FlockTrap.activate` draws `CellEmitter` (needs a `GameScene`) before its chain, so headless it can't reach it. The test replays Flock's chain statements (`if (disarmedByActivation) disarm(); reveal(); activate();`) on a real level: a consumed trap sends 19 once; a permanent one fires and sends nothing.
+  - `disarmSendsOnlyForThePlayedFloor`: a trap object that isn't the floor's, the world not on screen, the Binding Trap's `disarm()` (MISSION_START), an applied 19 from the ally (no echo), and generating another co-op floor all send nothing.
+  - `offlineChangesSurviveASaveAndLoad`: 2 changes made offline, `CoopRun` through Bundle text, still 2 pending, nothing sent; `onResumed` online → `5`, `19`, `REQ` in order; the saved outbox is empty afterwards; an old save without the key loads with an empty outbox.
+  - `aRequestInFlightIsNotSentTwice`: entry + RUNNING queued together (both orders) → 1 `REQ`; entry offline, then RUNNING → 1 `REQ`; the same floor again while in flight → none; after `TERRAINS` → asks again; after a reconnect → asks again, once.
+- Mutations (each reverted; `diff -q` against backups, then `restored`):
+  - M8 no on-screen check in `onTrapDisarmed` → `disarmSendsOnlyForThePlayedFloor` fails;
+  - M9 Binding Trap not excluded there → same test fails;
+  - M10 connection bumped inside the posted runnable → `aRequestInFlightIsNotSentTwice` fails;
+  - M11 no in-flight check → that test and `chainedTrapsSend19Once` fail;
+  - M12 outbox not stored → `offlineChangesSurviveASaveAndLoad` fails;
+  - M7 the `!trap.active` guard removed: **not detected**. A second disarm already sees `INACTIVE_TRAP` and the tile check stops it, so the guard is redundant.
+- Live against the Go server (as in round 1): `CoopLinksLiveTest` 1/1 and `CoopLinksTerrainLiveTest` 1/1 (`B got TERRAINS [{cell=650, tile=5}, {cell=651, tile=19}]`, `B applied TERRAIN cell=652 tile=18 persist`). The trap there now goes `trigger` → `disarm` → hook.
+- `make check` on the final tree: `== gate: all checks passed (scope: java docs secrets) ==`, `BUILD SUCCESSFUL in 1m 31s`; JUnit XML summed `total 197 skipped 3 failures 0 errors 0` (skipped: the 3 live suites).
+- Goldens: `git diff --stat dev -- core/src/test/resources/` is empty; md5 unchanged (`2629e5dd…` co-op, `d04a9d25…` vanilla).
+
+### Unverified (round 2)
+- Flock's real chain (replica only, see above). Summoning/Distortion: only up to the headless visual stop. In a real game the activation continues after it.
+- `CoopConnection.onStateChanged` → `onResumed` with a real reconnect: only the facade is tested (`onResumed` called directly). The live test doesn't drop a connection.
+- GUI E2E with two clients: not run. The owner checklist above stands; step 4 (arrive later, door unlocked) is now wired.
+
+### Open questions
+- None. Round-1 questions 1–4 are answered and done. Still open from round 1, not blocking: the follow-ups (DET-02's Trap Mechanism reveal stays per player; a public `CellPrison.seals(cell)` for MEC-01).
