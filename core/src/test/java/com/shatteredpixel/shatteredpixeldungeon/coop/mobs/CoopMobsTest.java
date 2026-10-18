@@ -94,7 +94,7 @@ class CoopMobsTest {
 		previousGame = Game.instance;
 		new Game( null, null ) {};
 		link = new FakeLink();
-		CoopMobs.link( link );
+		CoopMobs.link( link ); //also clears the request in flight
 	}
 
 	@AfterEach
@@ -386,6 +386,34 @@ class CoopMobsTest {
 	}
 
 	@Test
+	void oneKillsRequestPerFloorPerConnectionOnceTheFloorShows() {
+		Level level = coopFloor( 1, ME );
+		//the floor isn't on screen yet: the request waits for it
+		link.ready = false;
+		link.deferPosts = true;
+		CoopMobs.onLevelEntered( level );
+		link.pump( 5 );
+		assertTrue( link.sent.isEmpty(), link.sent.toString() );
+		link.ready = true;
+		link.pump( 5 );
+		assertEquals( List.of( "MOB_KILLS_REQ 1 0" ), link.sent );
+		link.deferPosts = false;
+
+		//entering again before the answer: still in flight on this connection
+		CoopMobs.onLevelEntered( level );
+		assertEquals( 1, link.sent.size() );
+		//a new connection (RUNNING again): the old request may be lost, ask again
+		CoopMobs.onResumed();
+		assertEquals( List.of( "MOB_KILLS_REQ 1 0", "MOB_KILLS_REQ 1 0" ), link.sent );
+		CoopMobs.onResumed();
+		assertEquals( 3, link.sent.size() );
+		//answered: the next entry asks again
+		CoopMobs.onServerEvent( mobKills( 1, 0 ) );
+		CoopMobs.onLevelEntered( level );
+		assertEquals( 4, link.sent.size() );
+	}
+
+	@Test
 	void theGrantedSetSurvivesASave() throws IOException {
 		Level level = coopFloor( 1, ME );
 		CoopMobs.onLevelEntered( level );
@@ -579,6 +607,15 @@ class CoopMobsTest {
 		final List<Message> frames = new ArrayList<>();
 		boolean running = true;
 		boolean ready = true;
+		boolean deferPosts;
+		final java.util.ArrayDeque<Runnable> posted = new java.util.ArrayDeque<>();
+
+		//runs the posts queued so far, frames times (a post may queue the next frame's)
+		void pump( int frames ) {
+			for (int i = 0; i < frames; i++) {
+				for (int n = posted.size(); n > 0; n--) posted.poll().run();
+			}
+		}
 
 		@Override
 		public String me() {
@@ -615,7 +652,11 @@ class CoopMobsTest {
 
 		@Override
 		public void post( Runnable r ) {
-			r.run();
+			if (deferPosts) {
+				posted.add( r );
+			} else {
+				r.run();
+			}
 		}
 
 		@Override

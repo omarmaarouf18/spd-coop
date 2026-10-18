@@ -207,6 +207,7 @@ public final class CoopConnection {
 		@Override
 		public void onStateChanged( CoopSession.State state ) {
 			if (state == CoopSession.State.RUNNING) CoopLinks.onResumed(); // LINK-02: re-ask the floor's record
+			if (state == CoopSession.State.RUNNING) CoopMobs.onResumed(); // MOB-01: re-ask the floor's kills
 			notifyUi();
 		}
 
@@ -239,7 +240,6 @@ public final class CoopConnection {
 			CoopRun current = Coop.run();
 			if (current != null && current.runId.equals( runInfo.get( "runId" ) )) {
 				//resumed into the run we're already playing
-				CoopMobs.onResumed();
 				return;
 			}
 			Coop.startRun( runInfo, playerId, resumeToken, epoch, url );

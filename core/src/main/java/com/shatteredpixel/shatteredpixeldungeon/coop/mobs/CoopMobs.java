@@ -123,6 +123,14 @@ public final class CoopMobs {
 
 	private static Link link = LIVE;
 
+	//connections seen (each transition to RUNNING starts one): a request sent on an older one may
+	// have been lost with it (LINK-02's rule)
+	private static int connection = 0;
+	//the MOB_KILLS_REQ sent and not answered yet: depth, branch, connection; null if none
+	private static int[] inFlight;
+	//a floor entry waits this many frames at most for the scene before asking anyway
+	static final int READY_WAIT = 600;
+
 	private static final Map<Mob, String> ids = Collections.synchronizedMap( new WeakHashMap<>() );
 
 	private CoopMobs() {}
@@ -130,6 +138,7 @@ public final class CoopMobs {
 	//tests: null restores the live link
 	public static void link( Link l ) {
 		link = l == null ? LIVE : l;
+		inFlight = null;
 	}
 
 	// ---- ids ----
@@ -228,24 +237,42 @@ public final class CoopMobs {
 			if (xp) grantXp( s, mob );
 		}
 
+		//the answer is applied to the floor on screen, so ask once it shows (LINK-02's rule)
 		link.post( () -> {
 			flush();
-			request( depth, branch );
+			requestWhenReady( depth, branch, READY_WAIT );
 		} );
 	}
 
-	//CoopConnection.onRunStart for a WELCOME snapshot (a resume): events may have been missed,
-	// so ask again for the floor we are on (applied idempotently)
+	//CoopConnection, on every transition to RUNNING (fresh start, reconnect, resume): kills may
+	// have been missed while away, so ask again for the floor we are on (applied idempotently). A
+	// request sent on an earlier connection may have been lost with it: not in flight any more.
 	public static void onResumed() {
+		//now, not in the posted part: a request already queued goes out on this connection
+		connection++;
 		if (!Coop.isCoopRun() || state() == null) return;
 		link.post( () -> {
+			if (!Coop.isCoopRun() || Dungeon.level == null || Dungeon.hero == null) return;
 			flush();
-			if (Dungeon.level != null) request( Dungeon.depth, Dungeon.branch );
+			request( Dungeon.depth, Dungeon.branch );
 		} );
 	}
 
+	private static void requestWhenReady( int depth, int branch, int frames ) {
+		if (depth != Dungeon.depth || branch != Dungeon.branch) return;
+		if (!link.worldReady() && frames > 0) {
+			link.post( () -> requestWhenReady( depth, branch, frames - 1 ) );
+			return;
+		}
+		request( depth, branch );
+	}
+
+	//GL thread: one MOB_KILLS_REQ per floor per connection until it is answered
 	private static void request( int depth, int branch ) {
-		if (link.running()) link.mobKillsReq( depth, branch );
+		if (inFlight != null && inFlight[0] == depth && inFlight[1] == branch && inFlight[2] == connection) return;
+		if (link.running() && link.mobKillsReq( depth, branch )) {
+			inFlight = new int[]{ depth, branch, connection };
+		}
 	}
 
 	// ---- server events (CoopConnection listener, GL thread) ----
@@ -289,6 +316,7 @@ public final class CoopMobs {
 
 	private static void onMobKills( int depth, int branch, List<String> killed ) {
 		MobState s = state();
+		if (inFlight != null && inFlight[0] == depth && inFlight[1] == branch) inFlight = null;
 		String key = floorKey( depth, branch );
 		boolean current = onCurrentFloor( depth, branch );
 		for (String id : killed) {
