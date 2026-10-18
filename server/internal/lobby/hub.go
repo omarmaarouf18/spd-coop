@@ -29,6 +29,13 @@
 //   - each room is an actor: one goroutine owns all of its state and runs
 //     the closures sent to it (room.do). There are no locks around room
 //     state, and the actor never blocks on the network;
+//   - replies keep the request order of their connection: the reader
+//     handles one frame at a time and waits for the actor (room.do), and
+//     every reply to a game request is queued inside that same closure on
+//     the session's single FIFO writer queue. Nothing replies from another
+//     goroutine, so CLAIM → DENY/CLAIMED then CLAIMS_REQ → CLAIMS arrive in
+//     that order (ITM-01 relies on it). Timer events (clock expiry) may
+//     interleave between two replies, never reorder them;
 //   - the Hub's maps (playerId → session, code → room, runId → room) and each
 //     session's seq counter / current connection are small, separately
 //     locked registries.
@@ -59,7 +66,13 @@ type Options struct {
 	Epoch string
 	// Shutdown, when done, closes every connection with status 1001.
 	Shutdown context.Context
-	Now      func() time.Time
+	// Now is the time source of the connection layer (rate limits).
+	Now func() time.Time
+	// Clock drives the game engine (missions, Downed windows, pause grace,
+	// twin windows) and every server timestamp; defaults to Now.
+	Clock Clock
+	// Rules are the co-op gameplay settings (COOP_* env vars).
+	Rules Rules
 
 	HelloTimeout     time.Duration // default 10 s
 	HeartbeatTimeout time.Duration // default 30 s
@@ -84,6 +97,10 @@ func (o *Options) defaults() {
 	if o.Now == nil {
 		o.Now = time.Now
 	}
+	if o.Clock == nil {
+		o.Clock = realClock{now: o.Now}
+	}
+	o.Rules.defaults()
 	setDur := func(d *time.Duration, v time.Duration) {
 		if *d == 0 {
 			*d = v
@@ -131,7 +148,7 @@ func New(opts Options) *Hub {
 // Epoch returns this server process's epoch.
 func (h *Hub) Epoch() string { return h.opts.Epoch }
 
-func (h *Hub) nowMs() int64 { return h.opts.Now().UnixMilli() }
+func (h *Hub) nowMs() int64 { return h.opts.Clock.Now().UnixMilli() }
 
 // ServeHTTP upgrades GET /ws and serves the connection until it closes.
 func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {

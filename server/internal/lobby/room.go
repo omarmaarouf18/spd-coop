@@ -44,6 +44,7 @@ type room struct {
 	evicted map[string]int64 // playerId → highest seq dropped from log
 	stopped bool
 	empty   *time.Timer // lobby with nobody connected: deletion timer
+	g       *game       // co-op engine state of a running run (SRV-02)
 }
 
 type slot struct {
@@ -70,6 +71,7 @@ func newRoom(h *Hub, code string) *room {
 		done:    make(chan struct{}),
 		phase:   protocol.PhaseLobby,
 		evicted: map[string]int64{},
+		g:       newGame(),
 	}
 }
 
@@ -111,6 +113,7 @@ func (r *room) restoreRunning(slots []*slot, run *protocol.RunInfo) {
 		r.slots[i] = s
 		s.sess.setRoom(r, protocol.PhaseRunning)
 	}
+	r.restoreGame()
 	r.start()
 }
 
@@ -144,7 +147,13 @@ func (r *room) ally(i int) *slot { return r.slots[1-i] }
 // sendReliable sends a reliable event to one slot (online or not) and logs
 // it for replay.
 func (r *room) sendReliable(s *slot, p protocol.Payload) {
-	seq, frame := s.sess.send(protocol.Envelope{}, p, false)
+	r.sendReliableEnv(s, protocol.Envelope{}, p)
+}
+
+// sendReliableEnv is sendReliable with envelope fields (a relayed reliable
+// type such as DROP_SHARE carries `from` and the floor).
+func (r *room) sendReliableEnv(s *slot, env protocol.Envelope, p protocol.Payload) {
+	seq, frame := s.sess.send(env, p, false)
 	if frame == nil {
 		return
 	}
@@ -181,6 +190,9 @@ func (r *room) stop() {
 	r.stopped = true
 	if r.empty != nil {
 		r.empty.Stop()
+	}
+	if r.g.wake != nil {
+		r.g.wake.Stop()
 	}
 	for _, s := range r.slots {
 		if s != nil {
@@ -350,6 +362,7 @@ func (r *room) relay(sess *session, env protocol.Envelope, p protocol.Payload) s
 			return
 		}
 		code = ""
+		r.noteFloor(i, env)
 		a := r.ally(i)
 		if a == nil || !a.connected {
 			return // ally offline: dropped silently
@@ -376,6 +389,9 @@ func (r *room) disconnected(sess *session) {
 			r.armEmptyTimer()
 		}
 		r.allyStatus(r.ally(i), s)
+		if r.phase == protocol.PhaseRunning {
+			r.pauseClocks()
+		}
 	})
 }
 
@@ -417,6 +433,12 @@ func (r *room) resume(sess *session, c *conn, welcome protocol.Welcome, helloSeq
 		if a := r.ally(i); a != nil {
 			// Tell the resumed player where the ally stands, too.
 			r.allyStatus(s, a)
+		}
+		if r.phase == protocol.PhaseRunning {
+			if !complete {
+				r.resyncTo(s)
+			}
+			r.resumeClocks()
 		}
 	})
 }

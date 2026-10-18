@@ -1,0 +1,80 @@
+# Worklog: SRV-02 — server co-op engine (missions, Downed, pause, items, boss, twin, terrain, Super Sync)
+
+## Task and scope
+- Task ID: SRV-02 (resumed: a previous agent created the worktree and wrote nothing)
+- Lane (allowed paths): `server/**` except `server/internal/protocol/**`, `docs/worklog/SRV-02.md`, `docs/coop/architecture.md` §4–§5
+- Hot paths granted: none used (`server/go.mod`/`go.sum` untouched; `server/internal/protocol/**` untouched; no Makefile change)
+- Branch: agent/SRV-02-mission-engine, rebased (fast-forward, no own commits) onto dev (8095958b7: PRO-02, DET-01, GHO-01, MEC-00, D-022)
+- Mid-task owner addition: replies to one connection must arrive in the order the requests were received (ITM-01 relies on CLAIM → DENY/CLAIMED, then CLAIMS_REQ → CLAIMS). Guaranteed in the room actor and tested.
+
+## Decisions taken
+- **Where:** the engine lives in the room actor (`room.g`, files `game.go`, `mission.go`, `items.go`, `world.go`), no locks. `Options.Clock` (new `Clock`/`Timer` interface, `clock.go`) drives every engine time and every server timestamp; the connection layer (rate limiter, hello/heartbeat watchdog) stays on real time. One wake-up timer per room, re-armed after every change; a stale fire is harmless (`tick` only acts on what is due).
+- **Reply order:** the reader goroutine handles one frame at a time and waits for the actor (`room.do`); every reply to a gameplay request is queued inside that closure on the session's single FIFO writer queue; nothing replies from another goroutine. Timer events may interleave between two replies, never reorder them. Documented in the `lobby` package comment; `TestRepliesKeepRequestOrder` sends CLAIM (taken) / CLAIMS_REQ / CLAIM / own re-claim / CLAIMS_REQ back to back for 8 rounds and checks DENY(ack) → CLAIMS(ack, without the id) → CLAIMED → CLAIMS(ack, with the id). DENY and CLAIMS carry `ack` = the request's seq.
+- **Floors:** each slot's floor is the last `depth`+`branch` envelope it sent (presence and gameplay), except `SYNC_VIEW`/`SYNC_CMD`/`SYNC_REPORT`, whose envelope floor is the host world's.
+- **MISSION_TRIGGER:** checks in order: sender out → `invalid_state`; mission active → `mission_active`; ally offline/out → `ally_offline`; ally on another floor → `ally_other_floor`; sender Downed → `downed`; ally Downed → `invalid_state`. `deadline = startsAt + COOP_CELL_CAP + COOP_CELL_CAP_PER_REGION × (depth-1)/5`; `keySeed` from crypto/rand.
+- **Cap / overtime backstop (my reading of "the server judges the cap and failures", §5.6):** at the deadline nothing happens (waves turn lethal on the client); if the mission is still open `COOP_DOWNED_WINDOW` after the deadline with the prisoner **not** Downed, it fails (`MISSION_END{failed, penalty}`). If the prisoner is Downed then, the Downed window decides. See open questions.
+- **Key:** `GIVE{cell_key}` only from the rescuer, on the mission floor, with the prisoner standing (`invalid_state` otherwise) and the mission not paused (`ally_offline`). Answer: `TRANSFER`, `MISSION_UPDATE{tasks.key:true}`, `MISSION_END{success, reward{rewardSeed}}` to both.
+- **Downed / revive:** repeat `DOWNED` ignored; a `DOWNED` while paused starts frozen (`ALLY_DOWNED.deadline` = now + window). `USE_RECALL`: sender Downed → `downed`; target not the ally (yourself) → `invalid_state`; target not Downed → `not_downed`; `healing` needs the target online (`ally_offline`) and on the sender's floor (`ally_other_floor`). Mode: `inPlace` for healing **and for any revive while a mission is active** (game-design §5.2: inside The Cell the prisoner stays in place), else `regionStart`; `hpPct` 25. Reviving the prisoner ends the mission `revived`.
+- **Expiry (D-022):** the active mission's prisoner → `MISSION_END{failed, penalty{regionStartDepth: ((depth-1)/5)*5+1, goldPct: 25}}` to both, **no** `DOWNED_EXPIRED`, and the prisoner is not out. Anyone else → `DOWNED_EXPIRED` to both and the player is out for the run (`COOP_DEATH_MODE=player_out`); an out player's `DOWNED` is ignored and they count as offline for triggers/gives/sync.
+- **Pause (D-005):** a disconnect in a running room freezes the mission (`MISSION_UPDATE{paused:true, remainingMs}`) and every Downed window. When both are connected again: `MISSION_UPDATE{paused:false, remainingMs}` (unchanged remaining) and `ALLY_DOWNED{deadline}` re-sent for every resumed window (MEC-00 review). `COOP_PAUSE_GRACE` (90 s) paused → `MISSION_END{aborted}`, no penalty. The grace counts from when the pause began; after a restart, from when the run was rebuilt.
+- **Super Sync on disconnect:** torn down with `SYNC_END{hpLost:0, reason:"interrupted"}` (PROTOCOL.md §5.9), not paused: the task said "pause their clocks", but a sync session has no server clock and the merged spec says teardown.
+- **Items (D-021):** records `claimed` / `given` / `dropped` with owner, giver and floor. CLAIM of an unseen id only for level-gen loot of the claimer's floor (`<depth>:<branch>:<n>` matching the envelope), of a dropped item only on its floor (`invalid_state` otherwise); first claim wins (`taken`), own re-claim silent. GIVE: a second GIVE of the same id by anyone → `already_transferred` (exactly once, even the recipient giving it back); held by the other player or lying dropped → `not_owner`; recipient out → `ally_offline`; giver Downed → `downed`; an offline recipient is fine (reliable `TRANSFER`). `toCell` is accepted but `TRANSFER` has no such field (spec), so it is not forwarded. DROP_SHARE: only by the holder (or an unseen id), registered as dropped, relayed reliably (with `from` + floor) to the ally whose last floor is the same, not echoed. CLAIMS lists, sorted, ≤ 256: level-gen ids of that floor that are not lying dropped, plus runtime ids registered there and not dropped.
+- **Boss pool:** a `BOSS_ENGAGE` with the ally online on the floor creates `pool = round(ht × COOP_BOSS_HP_SCALE)` → `BOSS_HP{hp=ht=pool}` to both; without the ally it is silent (per-world fight); a re-engage of a live pool sends the pool to the sender only. `BOSS_HIT` without a pool or with the ally off the floor → `DENY{no_pool}`; after `BOSS_DEAD` hits/engages are silent.
+- **Twin windows:** keyed by floor + kind + group (door: `objectId`; switch: `groupId`). A press from the other player inside `COOP_TWIN_WINDOW` completes it (door: same `objectId`; switch: different `objectId`), else it becomes the open press. `active:false` withdraws the sender's open press. Completed groups are no-ops (persisted).
+- **TERRAIN:** door tiles 5/6/9 only, relayed best-effort to the ally on the same floor; others dropped and logged at debug.
+- **Super Sync:** one per run (`sync_active`), drinker not Downed (`downed`), ally online (`ally_offline`). `SYNC_START` to both. `SYNC_VIEW` only from the host and `SYNC_CMD` only from the drinker, for the active `syncId` and a floor one of the players is on; otherwise dropped silently. **Caps: 10 frames/s per sender for `SYNC_VIEW` (spec §9) and also for `SYNC_CMD`** (the task asked for rate limits on both; the spec names only `SYNC_VIEW`), extra frames dropped silently. `SYNC_REPORT` only from the host → `SYNC_END` to both.
+- **Persistence (store v3):** `run_items` (one row per item) and `run_state` (the engine document as JSON + `saved_at`), written on every change and every 5 s while a clock runs. After a restart a run is rebuilt on its first resume; every clock comes back **paused** at its value at the last save (a crash loses ≤ 5 s of mission time; a clean stop pauses at the disconnect), and an open Super Sync is reported ended (`interrupted`). Because the `WELCOME` snapshot carries no mission state, a resume without replay (`complete:false`) gets the current state re-sent as reliable events: the last `MISSION_END`, `MISSION_START` + `MISSION_UPDATE`, `ALLY_DOWNED` per window, `DOWNED_EXPIRED` per out player, the last `SYNC_END`, `BOSS_HP`/`BOSS_DEAD`. MEC-00 drops the ones it already applied.
+- **Config:** the task's list plus two I added for the cap formula the spec calls "server config": `COOP_CELL_CAP` (4m) and `COOP_CELL_CAP_PER_REGION` (15s, 0 allowed). Durations are Go syntax (`30s`, `1500ms`); bounds in server/README.md. `-check-env` prints the effective values. `goldPct` 25 and `hpPct` 25 are constants.
+
+## Changes per commit (subject only — NO SHAs)
+1. `SRV-02: add store schema v3 (item ownership, run engine state)`
+2. `SRV-02: validate the COOP_* gameplay settings`
+3. `SRV-02: add the co-op engine to the room actor`
+4. `SRV-02: add missionprobe (two-client engine probe)`
+5. `SRV-02: README and architecture §4–§5 for the co-op engine`
+6. `SRV-02: worklog`
+
+## Verification
+- `cd server && gofmt -l . && go vet ./... && go test -race ./...` (with `GOTOOLCHAIN=go1.27.2`: the host Go is 1.26.9 with `GOTOOLCHAIN=local`) → gofmt empty, vet clean, `ok` for config, httpapi, lobby, protocol, store.
+- `go test -race -count=10 ./internal/lobby/` → `ok` (flake check of the fake-clock tests).
+- `make check` before every commit → `== gate: all checks passed ==` (scope `server secrets`, and `server docs secrets` for the docs commit; govulncheck `No vulnerabilities found.`).
+- Docker dev compose (`docker compose -f deploy/docker-compose.dev.yml up -d --build`) + `cd server && go run ./cmd/missionprobe` → `PASS: all 8 scenarios matched` (exit 0). The same probe against a local binary also passed.
+- `server -check-env` in the image → `configuration OK ...` plus the `coop:` line, exit 0; with `COOP_DOWNED_WINDOW=30 COOP_BOSS_HP_SCALE=0 COOP_DEATH_MODE=run_over` → three errors, exit 1.
+- `make server-probe` (SRV-01 restart flow on schema v3) → `server-probe: PASS`.
+- New tests (`internal/lobby/game_test.go`, fake clock in `fakeclock_test.go`): Cell success (cap per region, key exactly once, nothing fires later), trigger/give denials, prisoner Downed → Recall → revived, Cell expiry → failed + penalty with no `DOWNED_EXPIRED` (and the prisoner not out), Downed outside (healing floor rule, recall `regionStart`, expiry → out), disconnect → paused → Downed frozen → resume (`MISSION_UPDATE` + re-sent `ALLY_DOWNED`, then expiry), pause grace → aborted, resume inside the grace, overtime backstop, reply order, claim race (concurrent, 10 ids), give/drop flows, boss pool, twin door/switch windows, terrain, Super Sync (10/s caps on VIEW and CMD, wrong side/floor/syncId, Downed, disconnect → interrupted), engine state across a crash-style restart (crafted running snapshot: paused with `deadline − saved_at`, Downed frozen through the downtime, item ownership, boss pool), and gameplay outside a running room. Store: v1→v3, v2→v3 keeps runs, items/state round trip across a reopen. Config: values, defaults, every bad value.
+- Single-player impact: none (server only). Determinism impact: none.
+
+## Unverified
+- With real game clients (MEC-01/MEC-02/ITM-01/SYN-01/BOSS-01 are not built yet): only the probe and tests speak these messages.
+- A real hard crash of the server process (kill -9 mid-mission): covered only by the crafted-snapshot unit test, not run against the binary.
+- Mobile background (`ALLY_STATUS.paused`) stays `false`; only disconnects pause.
+
+## Follow-ups / out-of-lane findings
+- **MEC-02 (client):** after `MISSION_END{failed}` for a Downed prisoner the server sends neither `REVIVE` nor `DOWNED_EXPIRED` (D-022), so MEC-00's `MissionState.downed` keeps the prisoner's entry; MEC-02 should clear it on that `MISSION_END` (the prisoner arrives at 25% HP).
+- **PROTOCOL.md (owner/MEC-02, hot path):** §5.8 still says the expired prisoner plays the death path and also gets `MISSION_END` (D-022 supersedes); §5.6 could state that the server sends a fresh `MISSION_UPDATE` on every unpause and re-sends `ALLY_DOWNED` after a resume; §9 could add the `SYNC_CMD` cap; `TRANSFER` has no `toCell`.
+- `deploy/.env.example` / compose files don't list the `COOP_*` variables (out of lane; defaults apply).
+- `make mission-probe` not added (needs the Makefile grant); `cd server && go run ./cmd/missionprobe` works.
+- `hub.runRoom` loads the engine state while holding the hub registry lock (one SQLite read, only on the first resume after a restart).
+
+## Open questions
+- **Overtime backstop:** OK that a mission still open `COOP_DOWNED_WINDOW` after its hard cap, with the prisoner standing, fails with the penalty? (Alternative: fail exactly at the deadline, or never end it server-side.)
+- **Aborted mission with a Downed prisoner:** the window stays (frozen while someone is away) and, after the abort, an expiry is a real death outside a mission. Should an abort also clear or revive the prisoner's Downed window?
+- **GIVE back:** a recipient giving the same `itemNetId` back is `already_transferred` (strict "exactly once"). Should a given item be re-giftable by its new owner?
+
+## Review round (owner)
+Approved as is: in-order replies, `SYNC_END{interrupted}` on disconnect, the `SYNC_CMD` 10/s cap, `COOP_CELL_CAP*`, paused-after-restart, and the overtime backstop (open question 1).
+
+Changes (they supersede the matching decisions above):
+- **Abort with a Downed prisoner (open question 2):** an abort now clears the prisoner's Downed window: `REVIVE{target: prisoner, mode:"inPlace", hpPct:25}` to both, then `MISSION_END{aborted}`; no penalty, no `DOWNED_EXPIRED`. Test `TestAbortRevivesDownedPrisoner` (also: the offline prisoner gets both in its replay, nothing expires later).
+- **GIVE (open question 3):** "exactly once" is per request, not per item lifetime. The current owner may `GIVE` again, and each accepted `GIVE` moves ownership. `DENY{not_owner}` when the sender isn't the current owner; the sender's own last `GIVE` of that id again (a retry or a duplicated frame, while the ally still holds it) is `DENY{already_transferred}` and is not applied. A byte-identical duplicated frame is already refused by the seq rule (`ERROR{BAD_MESSAGE}`). Tests in `TestGiveExactlyOnceAndDropShare`: A→B→A→B across floors, a retried GIVE and a duplicated frame each produce exactly one `TRANSFER`.
+  - Limit: without a request id the server can't tell a late resend of an old GIVE from a new one once the item has come back to its sender (A→B, B→A, then A's stale resend would move it again). The client's seq/resume rules make that case unlikely; a request id would need a protocol change.
+
+Extra grants used: `deploy/.env.example` (every `COOP_*` with its default and a comment; the prod compose reads it through `env_file`), `Makefile` (`make mission-probe`: dev compose up `--wait`, `go run ./cmd/missionprobe` with `GOTOOLCHAIN=go$GO_VERSION`, compose down on exit; inline, since `scripts/**` isn't granted), PROTOCOL.md §5.8 (prose only, no schema/fixture change: outside vs inside a Cell mission, and the abort revive).
+
+### Changes per commit (review round, subject only)
+7. `SRV-02: revive a Downed prisoner on abort; let the current owner give again`
+8. `SRV-02: COOP_* in .env.example, make mission-probe, PROTOCOL §5.8 for D-022`
+9. `SRV-02: worklog (review round)`
+
+### Follow-up found
+- PROTOCOL.md §5.7 still says "the same id again is `DENY{already_transferred}` (owned by you) or `DENY{not_owner}` (owned by the other player)", which now reads stricter than the server. Not edited (only §5.8 was granted); suggested wording: "only the current owner may `GIVE`; a repeat of the sender's own last `GIVE` is `already_transferred`, anyone else `not_owner`".

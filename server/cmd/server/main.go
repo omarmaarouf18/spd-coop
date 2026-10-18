@@ -22,7 +22,7 @@
 // Command server is the Logic Link PD co-op server (architecture §4).
 //
 //	server               run the server (config from env: PORT, DB_PATH,
-//	                     LOG_LEVEL, ALLOWED_VERSIONS)
+//	                     LOG_LEVEL, ALLOWED_VERSIONS, COOP_*)
 //	server -check-env    validate the config and exit 0/1 without starting
 //	                     (the deploy pre-flight)
 //	server -healthcheck  GET http://127.0.0.1:$PORT/healthz and exit 0/1
@@ -68,8 +68,11 @@ func main() {
 
 	switch {
 	case *checkEnv:
+		c := cfg.Coop
 		fmt.Printf("configuration OK: port=%d db_path=%s log_level=%s allowed_versions=%v version=%s\n",
 			cfg.Port, cfg.DBPath, cfg.LogLevel, cfg.AllowedVersions, version)
+		fmt.Printf("coop: cell_wave_interval=%s cell_cap=%s cell_cap_per_region=%s downed_window=%s pause_grace=%s twin_window=%s boss_hp_scale=%g death_mode=%s\n",
+			c.CellWaveInterval, c.CellCap, c.CellCapPerRegion, c.DownedWindow, c.PauseGrace, c.TwinWindow, c.BossHPScale, c.DeathMode)
 	case *healthcheck:
 		if err := runHealthcheck(cfg.Port); err != nil {
 			fmt.Fprintf(os.Stderr, "healthcheck failed: %v\n", err)
@@ -80,6 +83,19 @@ func main() {
 			slog.Error("server failed", "err", err)
 			os.Exit(1)
 		}
+	}
+}
+
+func rules(c config.Coop) lobby.Rules {
+	return lobby.Rules{
+		CellWaveInterval: c.CellWaveInterval,
+		CellCap:          c.CellCap,
+		CellCapPerRegion: c.CellCapPerRegion,
+		DownedWindow:     c.DownedWindow,
+		PauseGrace:       c.PauseGrace,
+		TwinWindow:       c.TwinWindow,
+		BossHPScale:      c.BossHPScale,
+		DeathMode:        c.DeathMode,
 	}
 }
 
@@ -115,6 +131,7 @@ func run(cfg config.Config) error {
 		Logger:          logger,
 		AllowedVersions: cfg.AllowedVersions,
 		Shutdown:        ctx,
+		Rules:           rules(cfg.Coop),
 	})
 	srv := &http.Server{
 		Addr:              ":" + strconv.Itoa(cfg.Port),

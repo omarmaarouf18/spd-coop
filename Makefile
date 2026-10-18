@@ -3,7 +3,7 @@
 # NOTE: the repo path contains spaces ("CS tools", "game dev"); recipes only
 # use paths relative to the repo root.
 
-.PHONY: help ensure-hooks check ci ci-full commit push tools worktree-new worktree-list worktree-remove server-dev server-probe
+.PHONY: help ensure-hooks check ci ci-full commit push tools worktree-new worktree-list worktree-remove server-dev server-probe mission-probe
 
 .DEFAULT_GOAL := help
 
@@ -22,6 +22,7 @@ help:
 	@echo "make tools          install the pinned gate tools (tools/versions.env)"
 	@echo "make server-dev     run the Go server locally in Docker"
 	@echo "make server-probe   end-to-end server check in Docker (lobby, run start, restart, resume)"
+	@echo "make mission-probe  co-op engine check in Docker (missions, Downed, pause, items, twin, boss)"
 
 ensure-hooks:
 	@if [ "$$(git config --get core.hooksPath 2>/dev/null)" != ".githooks" ]; then \
@@ -95,3 +96,17 @@ server-dev:
 # The SRV-01 end-to-end flow in one command; see scripts/server-probe.sh.
 server-probe:
 	@bash scripts/server-probe.sh
+
+# The SRV-02 co-op engine probe against the dev compose server (about 80 s:
+# it waits out the Downed window twice). Compose goes down even on failure;
+# Go runs with GOTOOLCHAIN=go$$GO_VERSION from tools/versions.env.
+mission-probe:
+	@set -eu; \
+	. tools/versions.env; \
+	export GOTOOLCHAIN="go$${GO_VERSION}"; \
+	trap 'echo "== mission-probe: compose down =="; docker compose -f deploy/docker-compose.dev.yml down || true' EXIT; \
+	echo "== mission-probe: compose up (build, wait until healthy) =="; \
+	docker compose -f deploy/docker-compose.dev.yml up -d --build --wait; \
+	echo "== mission-probe: missionprobe =="; \
+	(cd server && go run ./cmd/missionprobe); \
+	echo "mission-probe: PASS"
