@@ -1,0 +1,14 @@
+{
+  "name": "c2s-terrain-req-ok",
+  "direction": "c2s",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "TERRAIN_REQ",
+    "seq": 33,
+    "p": {
+      "depth": 2,
+      "branch": 0
+    }
+  }
+}

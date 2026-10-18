@@ -1,0 +1,15 @@
+{
+  "name": "c2s-mob-kills-req-missing-depth",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "missing_field",
+  "field": "p.depth",
+  "message": {
+    "v": 1,
+    "t": "MOB_KILLS_REQ",
+    "seq": 32,
+    "p": {
+      "branch": 0
+    }
+  }
+}

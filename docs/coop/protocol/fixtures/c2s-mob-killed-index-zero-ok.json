@@ -1,0 +1,16 @@
+{
+  "name": "c2s-mob-killed-index-zero-ok",
+  "direction": "c2s",
+  "valid": true,
+  "note": "mobIndex starts at 0, like a seeded genIndex",
+  "message": {
+    "v": 1,
+    "t": "MOB_KILLED",
+    "seq": 31,
+    "depth": 12,
+    "branch": 1,
+    "p": {
+      "mobNetId": "12:1:0"
+    }
+  }
+}

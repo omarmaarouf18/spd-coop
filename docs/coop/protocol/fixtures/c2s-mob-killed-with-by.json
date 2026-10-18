@@ -1,0 +1,19 @@
+{
+  "name": "c2s-mob-killed-with-by",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "unknown_field",
+  "field": "p.by",
+  "note": "the server names the killer",
+  "message": {
+    "v": 1,
+    "t": "MOB_KILLED",
+    "seq": 30,
+    "depth": 3,
+    "branch": 0,
+    "p": {
+      "mobNetId": "3:0:7",
+      "by": "000000000000000a"
+    }
+  }
+}

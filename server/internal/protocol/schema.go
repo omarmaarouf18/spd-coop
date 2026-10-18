@@ -335,6 +335,8 @@ var (
 	// genIndex 0..9999999999, per DET-01's CoopItemIds) or a runtime
 	// "<playerId16hex>:<counter>" (counter 1..9999999999).
 	itemNetIDRe = regexp.MustCompile(`^(?:(?:[12][0-9]|30|[1-9]):[0-9]:(?:0|[1-9][0-9]{0,9})|[0-9a-f]{16}:(?:[1-9][0-9]{0,9}))$`)
+	// mobNetIDRe is §3: "<depth>:<branch>:<mobIndex>" only (no runtime form).
+	mobNetIDRe = regexp.MustCompile(`^(?:[12][0-9]|30|[1-9]):[0-9]:(?:0|[1-9][0-9]{0,9})$`)
 )
 
 func formatted(re *regexp.Regexp, what string) check {
@@ -350,6 +352,7 @@ var (
 	token            = formatted(tokenRe, "43 base64url chars")
 	roomCode         = formatted(roomCodeRe, "6 chars from "+RoomCodeAlphabet)
 	itemNet          = formatted(itemNetIDRe, `"<depth>:<branch>:<genIndex>" or "<playerId>:<counter>" (§3)`)
+	mobNet           = formatted(mobNetIDRe, `"<depth>:<branch>:<mobIndex>" (§3)`)
 	opaqueBlob check = opaque
 )
 

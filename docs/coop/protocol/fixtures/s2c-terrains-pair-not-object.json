@@ -1,0 +1,23 @@
+{
+  "name": "s2c-terrains-pair-not-object",
+  "direction": "s2c",
+  "valid": false,
+  "reason": "wrong_type",
+  "field": "p.changes.0",
+  "note": "changes are objects, not SYNC_VIEW-style flat pairs",
+  "message": {
+    "v": 1,
+    "t": "TERRAINS",
+    "seq": 64,
+    "p": {
+      "depth": 2,
+      "branch": 0,
+      "changes": [
+        [
+          208,
+          5
+        ]
+      ]
+    }
+  }
+}

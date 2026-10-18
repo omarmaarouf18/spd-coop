@@ -105,6 +105,13 @@ public final class Protocol {
 	public static final String TWIN_ACT = "TWIN_ACT";
 	public static final String TWIN_DONE = "TWIN_DONE";
 	public static final String TERRAIN = "TERRAIN";
+	//connected worlds: shared mobs, terrain record (§5.11)
+	public static final String MOB_KILLED = "MOB_KILLED";
+	public static final String MOB_DEAD = "MOB_DEAD";
+	public static final String MOB_KILLS_REQ = "MOB_KILLS_REQ";
+	public static final String MOB_KILLS = "MOB_KILLS";
+	public static final String TERRAIN_REQ = "TERRAIN_REQ";
+	public static final String TERRAINS = "TERRAINS";
 	//reserved for later versions (§5.4); within v1 the list only shrinks
 	public static final List<String> RESERVED = Arrays.asList( "TASK_DONE", "COOP_ROOM_ACT", "COOP_ROOM_STATE" );
 
@@ -139,13 +146,63 @@ public final class Protocol {
 	//DENY.reason closed list (§5.7)
 	public static final List<String> DENY_REASONS = Arrays.asList( "ally_offline", "ally_other_floor", "mission_active",
 			"invalid_state", "not_owner", "already_transferred", "taken", "no_pool", "sync_active", "downed", "not_downed" );
-	//door tiles the server relays (§5.10); SPD v4.0.2 Terrain values
-	public static final int TILE_DOOR = 5;      //Terrain.DOOR
-	public static final int TILE_OPEN_DOOR = 6; //Terrain.OPEN_DOOR
-	public static final int TILE_EMBERS = 9;    //Terrain.EMBERS, the burned-through (broken) door
+	//TERRAIN whitelist (§5.10, §5.11.2); SPD v4.0.2 Terrain values
+	public static final int TILE_EMPTY = 1;          //Terrain.EMPTY, an opened crystal door
+	public static final int TILE_DOOR = 5;           //Terrain.DOOR
+	public static final int TILE_OPEN_DOOR = 6;      //Terrain.OPEN_DOOR
+	public static final int TILE_EMBERS = 9;         //Terrain.EMBERS, the burned-through (broken) door
+	public static final int TILE_LOCKED_DOOR = 10;   //Terrain.LOCKED_DOOR ("from" tile only)
+	public static final int TILE_SECRET_TRAP = 17;   //Terrain.SECRET_TRAP ("from" tile only)
+	public static final int TILE_TRAP = 18;          //Terrain.TRAP, a revealed trap
+	public static final int TILE_INACTIVE_TRAP = 19; //Terrain.INACTIVE_TRAP, a consumed trap
+	public static final int TILE_LOCKED_EXIT = 21;   //Terrain.LOCKED_EXIT ("from" tile only)
+	public static final int TILE_UNLOCKED_EXIT = 22; //Terrain.UNLOCKED_EXIT
+	public static final int TILE_CRYSTAL_DOOR = 31;  //Terrain.CRYSTAL_DOOR ("from" tile only)
+	public static final int TILE_HERO_LKD_DR = 38;   //Terrain.HERO_LKD_DR, a door locked with the Skeleton Key
+	//the v1.1 door-mirroring tiles (§6A.6)
 	public static boolean isDoorTile( int tile ) {
 		return tile == TILE_DOOR || tile == TILE_OPEN_DOOR || tile == TILE_EMBERS;
 	}
+	//tiles the server relays in a TERRAIN (§5.11.2)
+	public static boolean isTerrainTile( int tile ) {
+		switch (tile) {
+			case TILE_EMPTY: case TILE_DOOR: case TILE_OPEN_DOOR: case TILE_EMBERS:
+			case TILE_TRAP: case TILE_INACTIVE_TRAP: case TILE_UNLOCKED_EXIT: case TILE_HERO_LKD_DR:
+				return true;
+			default:
+				return false;
+		}
+	}
+	//tiles a TERRAIN{persist:true} stores in the floor's record (§5.11.2): all but OPEN_DOOR
+	public static boolean isPersistTile( int tile ) {
+		return isTerrainTile( tile ) && tile != TILE_OPEN_DOOR;
+	}
+	//the receiver's transition rule (§5.11.2): may a TERRAIN/TERRAINS change turn
+	// the current tile `from` into `tile`? A change only moves a cell forward along the table.
+	public static boolean terrainTransition( int from, int tile ) {
+		switch (tile) {
+			case TILE_DOOR:
+				return from == TILE_OPEN_DOOR || from == TILE_LOCKED_DOOR || from == TILE_HERO_LKD_DR;
+			case TILE_OPEN_DOOR:
+				return from == TILE_DOOR || from == TILE_LOCKED_DOOR;
+			case TILE_EMBERS:
+				return from == TILE_DOOR || from == TILE_OPEN_DOOR;
+			case TILE_EMPTY:
+				return from == TILE_CRYSTAL_DOOR;
+			case TILE_UNLOCKED_EXIT:
+				return from == TILE_LOCKED_EXIT;
+			case TILE_HERO_LKD_DR:
+				return from == TILE_DOOR || from == TILE_OPEN_DOOR;
+			case TILE_INACTIVE_TRAP:
+				return from == TILE_TRAP || from == TILE_SECRET_TRAP;
+			case TILE_TRAP:
+				return from == TILE_SECRET_TRAP;
+			default:
+				return false;
+		}
+	}
+	//cap of MOB_KILLS.mobNetIds and TERRAINS.changes (§5.11)
+	public static final int MAX_FLOOR_LIST = 512;
 	private static final List<String> REJECT_CODES = Arrays.asList( BAD_MESSAGE, VERSION_MISMATCH, RESUME_FAILED );
 	private static final List<String> ERROR_CODES = Arrays.asList( BAD_MESSAGE, UNKNOWN_TYPE, INVALID_STATE, NOT_IN_ROOM,
 			ALREADY_IN_ROOM, ROOM_NOT_FOUND, ROOM_FULL, RATE_LIMITED, SESSION_REPLACED, INTERNAL );
@@ -172,10 +229,17 @@ public final class Protocol {
 			case ALLY_DOWNED: case REVIVE: case DOWNED_EXPIRED:
 			case SYNC_START: case SYNC_END:
 			case BOSS_HP: case BOSS_DEAD: case TWIN_DONE:
+			case MOB_DEAD:
 				return true;
 			default:
 				return false;
 		}
+	}
+
+	//reliable(t) plus the payload-dependent case: a TERRAIN with persist:true (§5.11.2, §7)
+	public static boolean reliable( Message m ) {
+		if (TERRAIN.equals( m.t )) return m.bool( "persist" );
+		return reliable( m.t );
 	}
 
 	public static boolean presence( String t ) {
@@ -196,7 +260,8 @@ public final class Protocol {
 				|| TRANSFER.equals( t ) || DENY.equals( t )
 				|| ALLY_DOWNED.equals( t ) || REVIVE.equals( t ) || DOWNED_EXPIRED.equals( t )
 				|| SYNC_START.equals( t ) || SYNC_END.equals( t )
-				|| BOSS_HP.equals( t ) || BOSS_DEAD.equals( t ) || TWIN_DONE.equals( t );
+				|| BOSS_HP.equals( t ) || BOSS_DEAD.equals( t ) || TWIN_DONE.equals( t )
+				|| MOB_DEAD.equals( t ) || MOB_KILLS.equals( t ) || TERRAINS.equals( t );
 	}
 
 	//one decoded or outgoing message. Optional envelope fields are null when absent.
@@ -353,6 +418,9 @@ public final class Protocol {
 	// (counter 1..9999999999), no leading zeros
 	private static final Pattern ITEM_NET_ID = Pattern.compile(
 			"^(?:(?:[12][0-9]|30|[1-9]):[0-9]:(?:0|[1-9][0-9]{0,9})|[0-9a-f]{16}:(?:[1-9][0-9]{0,9}))$" );
+	//mobNetId (§3): "<depth>:<branch>:<mobIndex>" only, the seeded rules of an itemNetId
+	private static final Pattern MOB_NET_ID = Pattern.compile(
+			"^(?:[12][0-9]|30|[1-9]):[0-9]:(?:0|[1-9][0-9]{0,9})$" );
 
 	private static Check formatted( final Pattern re, final String what ) {
 		return new Check() {
@@ -369,6 +437,7 @@ public final class Protocol {
 	private static final Check roomCode = formatted( ROOM_CODE, "6 chars from " + ROOM_CODE_ALPHABET );
 	private static final Check itemNetId = formatted( ITEM_NET_ID,
 			"\"<depth>:<branch>:<genIndex>\" or \"<playerId>:<counter>\" (§3)" );
+	private static final Check mobNetId = formatted( MOB_NET_ID, "\"<depth>:<branch>:<mobIndex>\" (§3)" );
 
 	//opaque string field: at most MAX_OPAQUE bytes (§3)
 	private static final Check opaque = new Check() {
@@ -586,6 +655,10 @@ public final class Protocol {
 	private static final ObjSchema MISSION_REWARD = new ObjSchema( null,
 			new Field( "rewardSeed", true, intRange( 0, MAX_SAFE_INT ) ) );
 
+	private static final ObjSchema TERRAIN_CHANGE = new ObjSchema( null,
+			new Field( "cell", true, intRange( 0, 65535 ) ),
+			new Field( "tile", true, intRange( 0, 255 ) ) );
+
 	private static final ObjSchema SYNC_ENTITY = new ObjSchema( null,
 			new Field( "id", true, intRange( 1, MAX_SAFE_INT ) ),
 			new Field( "kind", true, text( 32 ) ),
@@ -775,7 +848,28 @@ public final class Protocol {
 				new Field( "groupId", true, intRange( 1, MAX_SAFE_INT ) ) ) ) );
 		SPECS.put( TERRAIN, new TypeSpec( true, true, Floor.REQUIRED, new ObjSchema( null,
 				new Field( "cell", true, intRange( 0, 65535 ) ),
-				new Field( "tile", true, intRange( 0, 255 ) ) ) ) );
+				new Field( "tile", true, intRange( 0, 255 ) ),
+				new Field( "persist", false, bool ) ) ) );
+		// ---- connected worlds (§5.11) ----
+		SPECS.put( MOB_KILLED, new TypeSpec( true, false, Floor.REQUIRED, new ObjSchema( null,
+				new Field( "mobNetId", true, mobNetId ) ) ) );
+		SPECS.put( MOB_DEAD, new TypeSpec( false, true, Floor.FORBIDDEN, new ObjSchema( null,
+				new Field( "mobNetId", true, mobNetId ),
+				new Field( "by", true, hexId ) ) ) );
+		SPECS.put( MOB_KILLS_REQ, new TypeSpec( true, false, Floor.FORBIDDEN, new ObjSchema( null,
+				new Field( "depth", true, intRange( 1, 30 ) ),
+				new Field( "branch", true, intRange( 0, 9 ) ) ) ) );
+		SPECS.put( MOB_KILLS, new TypeSpec( false, true, Floor.FORBIDDEN, new ObjSchema( null,
+				new Field( "depth", true, intRange( 1, 30 ) ),
+				new Field( "branch", true, intRange( 0, 9 ) ),
+				new Field( "mobNetIds", true, array( 0, MAX_FLOOR_LIST, mobNetId ) ) ) ) );
+		SPECS.put( TERRAIN_REQ, new TypeSpec( true, false, Floor.FORBIDDEN, new ObjSchema( null,
+				new Field( "depth", true, intRange( 1, 30 ) ),
+				new Field( "branch", true, intRange( 0, 9 ) ) ) ) );
+		SPECS.put( TERRAINS, new TypeSpec( false, true, Floor.FORBIDDEN, new ObjSchema( null,
+				new Field( "depth", true, intRange( 1, 30 ) ),
+				new Field( "branch", true, intRange( 0, 9 ) ),
+				new Field( "changes", true, array( 0, MAX_FLOOR_LIST, object( TERRAIN_CHANGE ) ) ) ) ) );
 	}
 
 	//every v1 type a decoder of this direction accepts

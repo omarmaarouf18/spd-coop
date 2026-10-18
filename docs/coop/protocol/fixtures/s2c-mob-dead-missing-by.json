@@ -1,0 +1,15 @@
+{
+  "name": "s2c-mob-dead-missing-by",
+  "direction": "s2c",
+  "valid": false,
+  "reason": "missing_field",
+  "field": "p.by",
+  "message": {
+    "v": 1,
+    "t": "MOB_DEAD",
+    "seq": 52,
+    "p": {
+      "mobNetId": "3:0:7"
+    }
+  }
+}

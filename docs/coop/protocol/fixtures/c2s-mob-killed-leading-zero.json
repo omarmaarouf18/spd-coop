@@ -1,0 +1,17 @@
+{
+  "name": "c2s-mob-killed-leading-zero",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "bad_format",
+  "field": "p.mobNetId",
+  "message": {
+    "v": 1,
+    "t": "MOB_KILLED",
+    "seq": 30,
+    "depth": 3,
+    "branch": 0,
+    "p": {
+      "mobNetId": "3:0:07"
+    }
+  }
+}

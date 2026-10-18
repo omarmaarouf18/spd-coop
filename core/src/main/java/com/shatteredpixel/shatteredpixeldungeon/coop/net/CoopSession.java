@@ -76,7 +76,8 @@ public class CoopSession implements CoopClient.Listener {
 		//relayed GHOST / MARK / QUICK
 		void onPresence( Message presence );
 		//every remaining s2c type (Protocol.event): mission/item/downed/sync/boss/twin
-		// broadcasts and the relayed DROP_SHARE / SYNC_VIEW / SYNC_CMD / TERRAIN.
+		// broadcasts, the connected-worlds answers MOB_DEAD / MOB_KILLS / TERRAINS (§5.11)
+		// and the relayed DROP_SHARE / SYNC_VIEW / SYNC_CMD / TERRAIN.
 		// The receiver ignores messages for a floor it is not on (AGENTS.md §3.6).
 		default void onServerEvent( Message m ) {}
 		//WELCOME.serverTime / PONG.serverTime (server Unix ms) and our clock when it arrived (MEC-00:
@@ -276,6 +277,33 @@ public class CoopSession implements CoopClient.Listener {
 		public boolean terrain( int depth, int branch, int cell, int tile ) {
 			return send( floor( depth, branch, new Message( Protocol.TERRAIN ) )
 					.put( "cell", cell ).put( "tile", tile ) );
+		}
+
+		// ---- connected worlds (§5.11) ----
+
+		//persist marks a permanent change (an unlock, a consumed or revealed trap, a burned door):
+		// the server also stores it for players arriving later (§5.11.2)
+		public boolean terrain( int depth, int branch, int cell, int tile, boolean persist ) {
+			Message m = floor( depth, branch, new Message( Protocol.TERRAIN ) )
+					.put( "cell", cell ).put( "tile", tile );
+			if (persist) m.put( "persist", true );
+			return send( m );
+		}
+
+		public boolean mobKilled( int depth, int branch, String mobNetId ) {
+			return send( floor( depth, branch, new Message( Protocol.MOB_KILLED ) ).put( "mobNetId", mobNetId ) );
+		}
+
+		//the payload names the floor; the envelope stays clean (§5.11.1)
+		public boolean mobKillsReq( int depth, int branch ) {
+			return send( new Message( Protocol.MOB_KILLS_REQ )
+					.put( "depth", depth ).put( "branch", branch ) );
+		}
+
+		//the payload names the floor; the envelope stays clean (§5.11.2)
+		public boolean terrainReq( int depth, int branch ) {
+			return send( new Message( Protocol.TERRAIN_REQ )
+					.put( "depth", depth ).put( "branch", branch ) );
 		}
 
 		private static Message floor( int depth, int branch, Message m ) {

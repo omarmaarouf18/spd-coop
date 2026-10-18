@@ -1,0 +1,16 @@
+{
+  "name": "c2s-terrain-req-depth-zero",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "out_of_range",
+  "field": "p.depth",
+  "message": {
+    "v": 1,
+    "t": "TERRAIN_REQ",
+    "seq": 33,
+    "p": {
+      "depth": 0,
+      "branch": 0
+    }
+  }
+}

@@ -3,6 +3,7 @@
 > **Single source of truth** for the client (Java, `coop/net`, task `NET-01`) and the server (Go, `server/internal/protocol`, `SRV-01`).
 > The machine-checkable contract is `docs/coop/protocol/fixtures/*.json` (§11). Both sides must pass every fixture.
 > Changing this file or the fixtures is a hot-path change (WORKFLOW §5) and must keep both implementations in step.
+> Revisions within `v: 1` (additive, §5.4): v1.0 `PRO-01` (§5.1–§5.5), v1.1 `PRO-02` (§5.6–§5.10), v1.2 `PRO-03` (§5.11, the §5.10 terrain whitelist and `persist`).
 
 Keywords **MUST**, **MUST NOT**, **SHOULD** and **MAY** are used as in RFC 2119.
 
@@ -31,8 +32,8 @@ Every message, in both directions:
 | `t` | string | REQUIRED, a c2s type (§5) | REQUIRED, an s2c type (§5) |
 | `seq` | int ≥ 1 | REQUIRED (§2.1) | REQUIRED (§2.1) |
 | `ack` | int ≥ 0 | OPTIONAL (§2.1) | OPTIONAL (§2.1) |
-| `from` | playerId | OPTIONAL and **ignored**: the server overwrites it when relaying | REQUIRED on relayed types (§5.3, and `DROP_SHARE` §5.7, `SYNC_VIEW`/`SYNC_CMD` §5.9, `TERRAIN` §5.10), absent otherwise |
-| `depth` | int 1..30 | REQUIRED on every floor-scoped type (§5.3, §5.6 `MISSION_TRIGGER`, §5.7, §5.8, §5.9, §5.10 c2s types); OPTIONAL on `QUICK`; MUST be absent on every other type | REQUIRED on relayed types (copied from the sender), FORBIDDEN on server-authored s2c (§5.5) |
+| `from` | playerId | OPTIONAL and **ignored**: the server overwrites it when relaying | REQUIRED on relayed types (§5.3, and `DROP_SHARE` §5.7, `SYNC_VIEW`/`SYNC_CMD` §5.9, `TERRAIN` §5.10), absent otherwise (`MOB_DEAD.by` names the killer in the payload) |
+| `depth` | int 1..30 | REQUIRED on every floor-scoped type (§5.3, §5.6 `MISSION_TRIGGER`, §5.7, §5.8, §5.9, §5.10 c2s types, §5.11 `MOB_KILLED`); OPTIONAL on `QUICK`; MUST be absent on every other type (the `*_REQ` queries name their floor in the payload) | REQUIRED on relayed types (copied from the sender), FORBIDDEN on server-authored s2c (§5.5) |
 | `branch` | int 0..9 | REQUIRED together with `depth` (both or neither) | same |
 | `p` | object | REQUIRED, the typed payload (`{}` when the type has no fields) | REQUIRED |
 
@@ -64,6 +65,7 @@ Every message, in both directions:
 | msg (free text) | string, at most 256 chars |
 | missionId, syncId | 16 lowercase hex chars `^[0-9a-f]{16}$` (like epoch, server-minted CSPRNG) |
 | itemNetId | `"<depth>:<branch>:<genIndex>"` for level-gen loot — the exact id DET-01's `CoopItemIds` mints; `depth` 1..30, `branch` 0..9, `genIndex` 0..9999999999, all decimal without a leading zero — or `"<playerId16hex>:<counter>"` for runtime-minted items (counter 1..9999999999). Regex: `^(?:(?:[12][0-9]|30|[1-9]):[0-9]:(?:0|[1-9][0-9]{0,9})|[0-9a-f]{16}:(?:[1-9][0-9]{0,9}))$` |
+| mobNetId | `"<depth>:<branch>:<mobIndex>"` for a mob placed by co-op level gen (D-023, game-design §6A.9; minted by MOB-01 the same way `CoopItemIds` mints a seeded itemNetId): `depth` 1..30, `branch` 0..9, `mobIndex` 0..9999999999, all decimal without a leading zero. There is no runtime form: mobs spawned during play are local to each world. Regex: `^(?:[12][0-9]|30|[1-9]):[0-9]:(?:0|[1-9][0-9]{0,9})$` |
 | objectId, roomId | int 1..(2^53−1), a content-defined id minted by co-op level gen (DET-01); stable in both worlds |
 | entityId | int 1..(2^53−1), a StableActor id (§5.9) |
 | tile | int 0..255 (an SPD `Terrain` value) |
@@ -240,7 +242,7 @@ The server rejects `SYNC_VIEW`/`SYNC_CMD` for a floor neither player is on, and 
 
 - **Shared boss HP (§6A.3):** the first `BOSS_ENGAGE{bossId, ht}` for a floor defines the boss's `ht`. The server holds **one** HP pool for a boss while both players are on that floor: `pool = round(ht × COOP_BOSS_HP_SCALE)` (config, default `1.8`). Ally not on the floor → **no pool** (`BOSS_HIT` gets `DENY{no_pool}`; the fight is per-world). Every accepted `BOSS_HIT` broadcasts the new pool; pool `0` → `BOSS_DEAD` to both, and further hits/engages for that `bossId` are silently ignored. Both worlds drive phases and death from the broadcast pool.
 - **Twin windows (§6A.4–§6A.5):** presses pair server-side within `COOP_TWIN_WINDOW` (config, default 2 s). A **door** succeeds when both players press the **same** `objectId` inside the window; **switches** when both press **different** `objectIds` of the same `groupId`. The window opens with the first press; the matching press (same floor, inside the window) completes it → `TWIN_DONE{groupId}` to both (for a door, `groupId` is the door's `objectId`). Presses after a completed group are no-ops; rooms retry until then (§7).
-- **Terrain mirroring (§6A.6):** door tiles only. The server relays `TERRAIN` to the ally on the same floor; tiles outside the door whitelist are silently dropped (logged): `DOOR = 5`, `OPEN_DOOR = 6`, and `EMBERS = 9` (a burned-through door) — SPD v4.0.2 `Terrain` values; other terrain stays per-world.
+- **Terrain mirroring (§6A.6, §6A.10, §6A.11):** a whitelist of tiles (§5.11.2). The server relays `TERRAIN` to the ally on the same floor; a tile outside the whitelist is silently dropped (logged); other terrain stays per-world. `persist:true` marks a permanent change (an unlock, a consumed or revealed trap, a burned door): the server also stores it for the floor and a player arriving later gets it with `TERRAIN_REQ` (§5.11.2).
 
 | `t` | Dir | Envelope | Payload | Reliable |
 |---|---|---|---|---|
@@ -250,9 +252,53 @@ The server rejects `SYNC_VIEW`/`SYNC_CMD` for a floor neither player is on, and 
 | `BOSS_DEAD` | s2c | floor FORBIDDEN | `bossId` int 1..2^53−1 (REQUIRED) | yes |
 | `TWIN_ACT` | c2s | `depth`+`branch` REQUIRED | `objectId` objectId (REQUIRED), `kind` twin kind (REQUIRED), `cell` (REQUIRED), `active` bool (REQUIRED), `groupId` objectId (REQUIRED with kind `"switch"`, forbidden with kind `"door"`) | — |
 | `TWIN_DONE` | s2c | floor FORBIDDEN | `groupId` int 1..2^53−1 (REQUIRED) | yes |
-| `TERRAIN` | both | `depth`+`branch` REQUIRED | `cell` cell (REQUIRED), `tile` tile (REQUIRED) | no |
+| `TERRAIN` | both | `depth`+`branch` REQUIRED | `cell` cell (REQUIRED), `tile` tile (REQUIRED), `persist` bool (OPTIONAL, §5.11.2; absent = `false`) | yes with `persist:true`, no otherwise |
 
 Floor gating trusts the `depth`+`branch` envelope (same as presence, §5.3): both worlds are seeded identically, so only real movement in the simulated run can place a player on a floor they are not on.
+
+### 5.11 Connected worlds: shared mobs, locked doors, traps (D-023)
+
+Game-design §6A.9–§6A.11. Additive within `v: 1` (protocol v1.2, PRO-03). The server stores both registries per run and persists them (SRV-03).
+
+| `t` | Dir | Envelope | Payload | Reliable |
+|---|---|---|---|---|
+| `MOB_KILLED` | c2s | `depth`+`branch` REQUIRED | `mobNetId` (REQUIRED) | — |
+| `MOB_DEAD` | s2c | floor FORBIDDEN | `mobNetId` (REQUIRED), `by` playerId (REQUIRED, the killer) | yes |
+| `MOB_KILLS_REQ` | c2s | floor FORBIDDEN | `depth` int 1..30 (REQUIRED), `branch` int 0..9 (REQUIRED) | — |
+| `MOB_KILLS` | s2c | floor FORBIDDEN | `depth` int 1..30 (REQUIRED), `branch` int 0..9 (REQUIRED), `mobNetIds` array of mobNetId, at most 512 (REQUIRED) | no |
+| `TERRAIN_REQ` | c2s | floor FORBIDDEN | `depth` int 1..30 (REQUIRED), `branch` int 0..9 (REQUIRED) | — |
+| `TERRAINS` | s2c | floor FORBIDDEN | `depth` int 1..30 (REQUIRED), `branch` int 0..9 (REQUIRED), `changes` array of TerrainChange, at most 512 (REQUIRED) | no |
+
+TerrainChange = `{ "cell": cell, "tile": tile }`, both REQUIRED.
+
+#### 5.11.1 Shared mob kills
+
+- A client sends `MOB_KILLED` when a shared mob (one with a `mobNetId`) dies in its world, whatever killed it. The `mobNetId`'s floor MUST be the envelope floor; otherwise the server answers `DENY{invalid_state}` and records nothing.
+- **First kill wins.** The server records `mobNetId → killer` in the run's kill registry and sends `MOB_DEAD{mobNetId, by}` to **both** players (reliable: an offline ally gets it on resume). A later `MOB_KILLED` of an id already in the registry, from either player, is **silently ignored** (no `DENY`, no second `MOB_DEAD`): both worlds may kill the same mob before the first `MOB_DEAD` arrives, and that race is normal.
+- The kill is recorded whether or not the ally is online or on that floor. The ally's client removes the mob when it gets `MOB_DEAD` for its current floor (and grants the XP: both players get it, §6A.9), and otherwise when it arrives there.
+- `MOB_KILLS_REQ{depth, branch}` → `MOB_KILLS{depth, branch, mobNetIds}`: every killed `mobNetId` of that floor, sorted. The client asks when it enters a floor (like `CLAIMS_REQ`, §5.7). The payload names the floor and the envelope has none, so a floor can be asked for before `Dungeon.depth` changes; the answer echoes the floor and the receiver matches on it. The server sends at most 512 ids (more is a server bug, logged and truncated).
+- No `MOB_KILLED` for mobs spawned during play (respawns, summons, The Cell's waves): they have no `mobNetId`. Bosses keep their HP pool (§5.10).
+
+#### 5.11.2 Terrain whitelist and permanent changes
+
+The server relays a `TERRAIN` only when its `tile` is one of these SPD v4.0.2 `Terrain` values (the decoder accepts any 0..255; the whitelist is a relay rule, so tiles outside it are dropped silently, never errored):
+
+| `tile` | `Terrain` | Transition it mirrors (the receiver's current tile → `tile`) | Persist |
+|---|---|---|---|
+| 5 | `DOOR` | `OPEN_DOOR` → `DOOR` (door closed, §6A.6); `LOCKED_DOOR` (10) → `DOOR` (iron key); `HERO_LKD_DR` (38) → `DOOR` (hero-locked door opened) | only for the unlocks |
+| 6 | `OPEN_DOOR` | `DOOR` → `OPEN_DOOR` (door opened, §6A.6); `LOCKED_DOOR` → `OPEN_DOOR` (unlocked and walked in) | no |
+| 9 | `EMBERS` | `DOOR`/`OPEN_DOOR` → `EMBERS` (burned door, §6A.6) | yes |
+| 1 | `EMPTY` | `CRYSTAL_DOOR` (31) → `EMPTY` (crystal key) | yes |
+| 22 | `UNLOCKED_EXIT` | `LOCKED_EXIT` (21) → `UNLOCKED_EXIT` (worn key) | yes |
+| 38 | `HERO_LKD_DR` | `DOOR`/`OPEN_DOOR` → `HERO_LKD_DR` (door locked with the Skeleton Key) | yes |
+| 19 | `INACTIVE_TRAP` | `TRAP` (18) / `SECRET_TRAP` (17) → `INACTIVE_TRAP` (trap triggered: consumed, not fired, §6A.11) | yes |
+| 18 | `TRAP` | `SECRET_TRAP` (17) → `TRAP` (hidden trap revealed, §6A.11) | yes |
+
+- The server only knows the tile, never the map: the **receiving client** applies a `TERRAIN`/`TERRAINS` change only if its own current tile at that cell is one of the "from" tiles in the row above, and otherwise ignores it (LINK-01/LINK-02). That makes the shared tiles (`EMPTY`, `DOOR`, …) safe: a change can only move a cell forward along the table. Co-op terrain ids (200–255, AGENTS.md §3.5) are never relayed.
+- **`persist:true`** marks a permanent change. The server relays it like any `TERRAIN`, **reliably** (logged and replayed on resume), and also stores it in the floor's terrain record: one tile per cell, the last persisted change wins (a door locked with the Skeleton Key and opened again ends as `DOOR`). A `TERRAIN` with `persist:true` and `OPEN_DOOR` (6) is relayed but not stored. Without `persist` (door open/close) it is relay-only and best-effort, as in §5.10.
+- A persisted change is stored whether or not the ally is on the floor (it is relayed only when the ally is there). A floor stores at most 512 cells; changes to further cells are relayed but not stored (logged).
+- `TERRAIN_REQ{depth, branch}` → `TERRAINS{depth, branch, changes}`: the floor's stored changes, sorted by `cell`. The client asks when it enters a floor (the same rule as `MOB_KILLS_REQ`) and applies them with the transition rule above.
+- Co-op-specific traps (the Binding Trap, MEC-01) and The Cell's sealed doors are not mirrored (§6A.11, LINK-01).
 
 ## 6. Connection state machine
 
@@ -271,7 +317,7 @@ new ──HELLO ok──▶ ready ──ROOM_CREATE / ROOM_JOIN──▶ in_lobb
 | `ROOM_LEAVE` | INVALID_STATE | NOT_IN_ROOM | ✓ | INVALID_STATE |
 | `READY` | INVALID_STATE | NOT_IN_ROOM | ✓ | INVALID_STATE |
 | `GHOST`, `MARK`, `QUICK` | INVALID_STATE | NOT_IN_ROOM | INVALID_STATE | ✓ |
-| `MISSION_TRIGGER`, `DOWNED`, `USE_RECALL`, `CLAIM`, `CLAIMS_REQ`, `GIVE`, `DROP_SHARE`, `SYNC_DRINK`, `SYNC_REPORT`, `BOSS_ENGAGE`, `BOSS_HIT`, `TWIN_ACT`, `TERRAIN` | INVALID_STATE | NOT_IN_ROOM | INVALID_STATE | ✓ |
+| `MISSION_TRIGGER`, `DOWNED`, `USE_RECALL`, `CLAIM`, `CLAIMS_REQ`, `GIVE`, `DROP_SHARE`, `SYNC_DRINK`, `SYNC_REPORT`, `BOSS_ENGAGE`, `BOSS_HIT`, `TWIN_ACT`, `TERRAIN`, `MOB_KILLED`, `MOB_KILLS_REQ`, `TERRAIN_REQ` | INVALID_STATE | NOT_IN_ROOM | INVALID_STATE | ✓ |
 
 - An illegal message gets an `ERROR` and is not processed. **The connection stays open.**
 - A connection that sends no valid `HELLO` within 10 s is closed (status `4002`).
@@ -286,7 +332,7 @@ new ──HELLO ok──▶ ready ──ROOM_CREATE / ROOM_JOIN──▶ in_lobb
 3. If the player has another open connection, that one gets `ERROR{SESSION_REPLACED}` and is closed (`4003`). The newest connection wins.
 4. The server answers `WELCOME{resumed:true, room, run?}` with the current snapshot. Then:
    - **same epoch:** it replays every reliable event for this player with `seq > ack`, in order, **with their original `seq`** (so they are lower than the `WELCOME`'s `seq`). `replayed` says how many follow, and `complete: true`. If the log (the last 256 events per room) no longer holds all of them, nothing is replayed and `complete: false`.
-     The reliable set is: `ROOM_STATE`, `RUN_START`, `ALLY_STATUS` (§5.2); `MISSION_START`, `MISSION_UPDATE`, `MISSION_END` (§5.6); `CLAIMED`, `TRANSFER`, `DROP_SHARE` (§5.7); `ALLY_DOWNED`, `REVIVE`, `DOWNED_EXPIRED` (§5.8); `SYNC_START`, `SYNC_END` (§5.9); `BOSS_HP`, `BOSS_DEAD`, `TWIN_DONE` (§5.10). Replaying the last `MISSION_UPDATE`/`ALLY_STATUS` gives a resumed client the paused state without extra machinery.
+     The reliable set is: `ROOM_STATE`, `RUN_START`, `ALLY_STATUS` (§5.2); `MISSION_START`, `MISSION_UPDATE`, `MISSION_END` (§5.6); `CLAIMED`, `TRANSFER`, `DROP_SHARE` (§5.7); `ALLY_DOWNED`, `REVIVE`, `DOWNED_EXPIRED` (§5.8); `SYNC_START`, `SYNC_END` (§5.9); `BOSS_HP`, `BOSS_DEAD`, `TWIN_DONE`, and `TERRAIN` with `persist:true` (§5.10, §5.11.2); `MOB_DEAD` (§5.11). Replaying the last `MISSION_UPDATE`/`ALLY_STATUS` gives a resumed client the paused state without extra machinery.
    - **other epoch** (the server restarted): no replay, `replayed: 0`, `complete: false`. The snapshot is the truth. The client resets its `ack` baseline to the new epoch.
 5. The ally receives `ALLY_STATUS{connected:true}`. When a player disconnects, the ally receives `ALLY_STATUS{connected:false, lastSeen}`.
 6. After a server restart, a player of a `running` run is put back into it on resume. The ally shows as `connected:false` until it also resumes.

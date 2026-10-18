@@ -1,0 +1,16 @@
+{
+  "name": "c2s-mob-killed-missing-floor",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "missing_field",
+  "field": "depth",
+  "note": "MOB_KILLED is floor-scoped",
+  "message": {
+    "v": 1,
+    "t": "MOB_KILLED",
+    "seq": 30,
+    "p": {
+      "mobNetId": "3:0:7"
+    }
+  }
+}

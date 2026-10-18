@@ -1,0 +1,25 @@
+{
+  "name": "s2c-terrains-unknown-field-ok",
+  "direction": "s2c",
+  "valid": true,
+  "ignoredFields": [
+    "p.changes.0.by"
+  ],
+  "note": "s2c ignores unknown fields, also inside array elements (§5.5)",
+  "message": {
+    "v": 1,
+    "t": "TERRAINS",
+    "seq": 63,
+    "p": {
+      "depth": 2,
+      "branch": 0,
+      "changes": [
+        {
+          "cell": 208,
+          "tile": 5,
+          "by": "000000000000000a"
+        }
+      ]
+    }
+  }
+}

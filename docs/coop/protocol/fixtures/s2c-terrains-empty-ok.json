@@ -1,0 +1,15 @@
+{
+  "name": "s2c-terrains-empty-ok",
+  "direction": "s2c",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "TERRAINS",
+    "seq": 62,
+    "p": {
+      "depth": 7,
+      "branch": 0,
+      "changes": []
+    }
+  }
+}

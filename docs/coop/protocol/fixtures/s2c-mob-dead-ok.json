@@ -1,0 +1,15 @@
+{
+  "name": "s2c-mob-dead-ok",
+  "direction": "s2c",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "MOB_DEAD",
+    "seq": 52,
+    "ack": 30,
+    "p": {
+      "mobNetId": "3:0:7",
+      "by": "000000000000000a"
+    }
+  }
+}

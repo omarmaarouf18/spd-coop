@@ -1,0 +1,17 @@
+{
+  "name": "c2s-mob-dead-c2s",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "unknown_type",
+  "field": "t",
+  "note": "s2c-only type",
+  "message": {
+    "v": 1,
+    "t": "MOB_DEAD",
+    "seq": 30,
+    "p": {
+      "mobNetId": "3:0:7",
+      "by": "000000000000000a"
+    }
+  }
+}

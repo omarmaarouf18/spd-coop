@@ -1,0 +1,16 @@
+{
+  "name": "s2c-mob-kills-missing-ids",
+  "direction": "s2c",
+  "valid": false,
+  "reason": "missing_field",
+  "field": "p.mobNetIds",
+  "message": {
+    "v": 1,
+    "t": "MOB_KILLS",
+    "seq": 56,
+    "p": {
+      "depth": 3,
+      "branch": 0
+    }
+  }
+}

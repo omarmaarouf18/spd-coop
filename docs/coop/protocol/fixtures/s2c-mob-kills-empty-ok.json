@@ -1,0 +1,15 @@
+{
+  "name": "s2c-mob-kills-empty-ok",
+  "direction": "s2c",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "MOB_KILLS",
+    "seq": 55,
+    "p": {
+      "depth": 4,
+      "branch": 0,
+      "mobNetIds": []
+    }
+  }
+}

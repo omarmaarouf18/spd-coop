@@ -1,0 +1,19 @@
+{
+  "name": "c2s-terrain-req-with-floor",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "forbidden_field",
+  "field": "depth",
+  "note": "the payload names the floor; the envelope stays clean",
+  "message": {
+    "v": 1,
+    "t": "TERRAIN_REQ",
+    "seq": 33,
+    "depth": 2,
+    "branch": 0,
+    "p": {
+      "depth": 2,
+      "branch": 0
+    }
+  }
+}

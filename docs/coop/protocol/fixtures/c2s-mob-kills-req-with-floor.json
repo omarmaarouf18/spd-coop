@@ -1,0 +1,19 @@
+{
+  "name": "c2s-mob-kills-req-with-floor",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "forbidden_field",
+  "field": "depth",
+  "note": "the payload names the floor; the envelope stays clean",
+  "message": {
+    "v": 1,
+    "t": "MOB_KILLS_REQ",
+    "seq": 32,
+    "depth": 3,
+    "branch": 0,
+    "p": {
+      "depth": 3,
+      "branch": 0
+    }
+  }
+}
