@@ -27,17 +27,29 @@ import com.shatteredpixel.shatteredpixeldungeon.Chrome;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.GamesInProgress;
 import com.shatteredpixel.shatteredpixeldungeon.ShatteredPixelDungeon;
+import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
+import com.shatteredpixel.shatteredpixeldungeon.coop.ghost.CoopGhosts;
+import com.shatteredpixel.shatteredpixeldungeon.coop.ghost.GhostLayer;
+import com.shatteredpixel.shatteredpixeldungeon.coop.ghost.HeroSnapshot;
 import com.shatteredpixel.shatteredpixeldungeon.coop.levelgen.CoopLevelGen;
+import com.shatteredpixel.shatteredpixeldungeon.coop.ui.AllyCompass;
+import com.shatteredpixel.shatteredpixeldungeon.coop.ui.AllyStatusChip;
+import com.shatteredpixel.shatteredpixeldungeon.coop.ui.CoopHud;
 import com.shatteredpixel.shatteredpixeldungeon.coop.ui.WndCoop;
 import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
+import com.shatteredpixel.shatteredpixeldungeon.scenes.CellSelector;
+import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.InterlevelScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
 import com.shatteredpixel.shatteredpixeldungeon.ui.ActionIndicator;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Icons;
 import com.shatteredpixel.shatteredpixeldungeon.ui.StyledButton;
 import com.shatteredpixel.shatteredpixeldungeon.utils.DungeonSeed;
+import com.watabou.noosa.Group;
+import com.watabou.noosa.Image;
+import com.watabou.noosa.ui.Component;
 import com.watabou.utils.Bundle;
 
 import java.util.List;
@@ -203,5 +215,47 @@ public final class Coop {
 		ActionIndicator.clearAction();
 		InterlevelScene.mode = InterlevelScene.Mode.CONTINUE;
 		ShatteredPixelDungeon.switchScene( InterlevelScene.class );
+	}
+
+	// --- GHO-01 ---
+	// ghost presence, ally compass/status, pings, quick messages (coop/ghost, coop/ui).
+	// Visual and social only: no world change, no gameplay Random, nothing saved with the run.
+
+	//Hero.act(): the hero's previous action has resolved; our GHOST (new pos) goes to the ally
+	public static void onHeroTurn( Hero hero ) {
+		if (run != null) CoopGhosts.onHeroTurn( hero );
+	}
+
+	//Hero.onAttackComplete()
+	public static void onHeroAttacked( Hero hero ) {
+		if (run != null) CoopGhosts.onHeroAnim( hero, HeroSnapshot.ATTACK );
+	}
+
+	//Hero.onOperateComplete()
+	public static void onHeroOperated( Hero hero ) {
+		if (run != null) CoopGhosts.onHeroAnim( hero, HeroSnapshot.OPERATE );
+	}
+
+	//Hero.die()
+	public static void onHeroDied( Hero hero ) {
+		if (run != null) CoopGhosts.onHeroAnim( hero, HeroSnapshot.DIE );
+	}
+
+	//GameScene.create(), between the heaps and the mobs: the ghost is drawn above the floor and
+	// items, under the mobs and our hero
+	public static void addGhostLayer( Group scene ) {
+		if (run != null) scene.add( new GhostLayer() );
+	}
+
+	//GameScene.create(), right after the CellSelector: ping input on cells, ping markers, HUD
+	public static void addGameHud( GameScene scene, CellSelector selector ) {
+		if (run != null) CoopHud.attach( scene, selector );
+	}
+
+	//StatusPane: the ally compass around our portrait and the ally status chip
+	public static void addStatusHud( Component pane, Image avatar ) {
+		if (run == null) return;
+		pane.add( new AllyCompass( avatar ) );
+		pane.add( new AllyStatusChip( pane ) );
 	}
 }

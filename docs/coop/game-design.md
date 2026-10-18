@@ -35,9 +35,10 @@
 
 Players on mobile can't type quickly, so communication is a core system, not polish.
 
-- **Ping:** long-press a cell to show a marker in the ally's world at the same cell for ~5s. Types: *Here* / *Danger* / *Key/Item* / *Go*.
-- **Quick messages:** a radial of ~8 phrases ("Help!", "Wait", "Found key", "Trapped", "Coming", …), all localizable.
-- **Ally status chip:** the ally's HP %, depth, and state (OK / In mission / Downed).
+- **Ping:** long-press a cell (0.5 s, touch or mouse; desktop also: middle-click a cell, or `G` for the cell under the mouse) to open a picker: *Here* / *Danger* / *Item* / *Go*. The marker shows on that cell for ~5 s in both worlds (locally at once, the ally's via `MARK`), drawn over the fog, with an arrow at the screen edge while it is off-screen. Only cells you have seen can be pinged. Same floor only: a ping for another floor is ignored (it only updates the ally compass). Local rate limit: 1 per second. The ally's ping also writes a log line.
+- **Quick messages:** 8 phrases ("Help!", "Wait", "Found key", "Trapped", "Coming", "Go on", "Danger", "Thanks"), all localizable; the `phraseId` (0–7) is wire format and never renumbered. Opened by tapping the ally chip, or `T` on desktop (`T`/`G` are co-op key actions, rebindable in the key bindings window). Received: a log line with the ally's name, plus a ~3 s toast.
+- **Ally status chip** (under the status pane; top-left with the large UI): the ally's hero icon, HP %, depth, and connection (*online* / *offline Ns/Nm* since last seen / *reconnecting...* when our own connection is down). In-mission / Downed states come with MEC tasks.
+- **Ally compass:** on the same floor, a second, tinted arrow around our portrait points at the ally; on another floor it shows "↓N" / "↑N" (floors away), or "≠" for the other branch of the same depth.
 - Voice chat is out of scope (people use Discord).
 
 ## 4. Mission: **The Cell** ✅
@@ -207,10 +208,13 @@ New rooms must follow the template in §9.
 
 ## 8. Ghost behavior
 
-- Translucent and tinted, mirroring the ally's cell position; it animates move/attack/downed.
-- **Intangible:** mobs ignore it, and it doesn't block cells. Exceptions: Super Sync (§6) and light (Dark Floor).
+- Translucent (alpha 0.5) and tinted cool blue, using the ally's hero class and armor tier, mirroring the ally's cell position; it moves smoothly between cells and animates attack/operate/zap/die (downed comes with MEC-02).
+- Drawn above the floor and items, under mobs and your hero, and **only on cells you have visited or mapped**: it never reveals terrain you haven't seen.
+- **Intangible:** it is not an Actor and not in the level's mobs: mobs ignore it, and it doesn't block cells. Exceptions: Super Sync (§6) and light (Dark Floor).
+- **Offline ally:** the ghost stays at its last cell, greyed and faded, and comes back when the ally reconnects. It is restored after level changes, save/load and reconnects from the last received position (the ally resends it every ~5 s while idle).
+- **Opaque mode:** drawn fully opaque while both players share a Twin Switches room (§6A.5; API ready, used by ROOM-01).
 - **Scouting:** the ghost reveals nothing extra by default. ❓ Should the ally's ghost share a small FOV radius (1–2) in your world? It's strong, and it might replace the need for pings.
-- Hidden when the ally is on another floor.
+- Hidden when the ally is on another floor (the compass shows "↓N" / "↑N" instead).
 
 ## 9. Template for a new co-op mechanic
 

@@ -25,6 +25,7 @@ package com.shatteredpixel.shatteredpixeldungeon.coop;
 
 import com.badlogic.gdx.Application;
 import com.badlogic.gdx.Gdx;
+import com.shatteredpixel.shatteredpixeldungeon.coop.ghost.CoopGhosts;
 import com.shatteredpixel.shatteredpixeldungeon.coop.net.Backoff;
 import com.shatteredpixel.shatteredpixeldungeon.coop.net.CoopClient;
 import com.shatteredpixel.shatteredpixeldungeon.coop.net.CoopSession;
@@ -219,12 +220,13 @@ public final class CoopConnection {
 		@Override
 		public void onAllyStatus( Message status ) {
 			allyConnected = status.bool( "connected" );
+			CoopGhosts.onAllyStatus( status );
 			notifyUi();
 		}
 
 		@Override
 		public void onPresence( Message presence ) {
-			//GHO-01 draws the ally from these
+			CoopGhosts.onPresence( presence );
 		}
 
 		@Override
