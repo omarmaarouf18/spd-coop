@@ -100,3 +100,26 @@ Literal outputs are in the chat report.
 ## Open questions
 - ~~**Quest mobs:** should the rot garden and the mine/vault branch-floor mobs stay per-world (no id)?~~ Answered by the owner: yes, they stay per-world as implemented.
 - None open.
+
+## Rebase onto dev (LINK-02 + MEC-02 merged)
+- Rebased `agent/MOB-01-shared-mobs` onto dev `4fa3481f0` (owner's request). The commits got new hashes.
+- Conflicts were resolved by keeping both sides, dev's line first, then MOB-01's:
+  - `Dungeon.java`: import, and the floor-entry hook after `CoopLinks.onLevelEntered`.
+  - `CoopConnection.java`: import.
+  - `CoopRun.java`: `terrainOutbox` then `mobs`, in field, key, store and restore.
+  - `CoopLevelGen.java` merged by itself: `RecallLayout.place` → item ids → mob ids.
+- **D-024** (merged with dev) confirms the XP rule as implemented: on the floor at once, otherwise on entry, never for a floor already left.
+- **MOB_KILLS_REQ, LINK-02's way** (own commit):
+  - The floor-entry request now waits until the floor is on screen (up to 600 frames, like `CoopLinks.requestWhenReady`). Before, an answer that arrived mid floor switch was dropped as "not the current floor" and those mobs stayed until the next entry.
+  - One request per floor per connection until `MOB_KILLS` answers it.
+  - Every transition to RUNNING re-asks, from the same `CoopConnection.onStateChanged` hook LINK-02 uses (the `onRunStart` line is gone).
+  - New test `oneKillsRequestPerFloorPerConnectionOnceTheFloorShows`.
+- **Goldens:**
+  - Took dev's `coop-v4.0.2.json` (md5 `93b5dcc025af26d3799c2a2607439c6a`) and regenerated it twice: both runs gave md5 `fdef7c7a6330f673148c1664ec0d11ea`.
+  - A parsed comparison against dev shows 252 floors with `all` changed and `mobIds` added, and nothing else changed or removed. MEC-02's Recall placements (`items`, `netIds`) are untouched; the `netIds` lines only gained a trailing comma.
+  - Committed on its own. **The rebased first commit carries dev's goldens (taken as asked), so its tree alone fails `CoopGoldensTest`;** the next commit fixes that. Squash on merge if bisectability matters.
+
+### Changes per commit (rebase round, subject only)
+5. `MOB-01: regenerate the co-op goldens on top of LINK-02/MEC-02`
+6. `MOB-01: ask MOB_KILLS_REQ the LINK-02 way (scene shown, one in flight, RUNNING)`
+7. `MOB-01: worklog (rebase onto LINK-02/MEC-02)`
