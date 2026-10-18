@@ -30,6 +30,7 @@ import com.shatteredpixel.shatteredpixeldungeon.coop.mission.CoopMissions;
 import com.shatteredpixel.shatteredpixeldungeon.coop.items.CoopItems;
 import com.shatteredpixel.shatteredpixeldungeon.coop.links.CoopLinks;
 import com.shatteredpixel.shatteredpixeldungeon.coop.mission.downed.CoopDowned;
+import com.shatteredpixel.shatteredpixeldungeon.coop.mobs.CoopMobs;
 import com.shatteredpixel.shatteredpixeldungeon.coop.net.Backoff;
 import com.shatteredpixel.shatteredpixeldungeon.coop.net.CoopClient;
 import com.shatteredpixel.shatteredpixeldungeon.coop.net.CoopSession;
@@ -206,6 +207,7 @@ public final class CoopConnection {
 		@Override
 		public void onStateChanged( CoopSession.State state ) {
 			if (state == CoopSession.State.RUNNING) CoopLinks.onResumed(); // LINK-02: re-ask the floor's record
+			if (state == CoopSession.State.RUNNING) CoopMobs.onResumed(); // MOB-01: re-ask the floor's kills
 			notifyUi();
 		}
 
@@ -263,6 +265,7 @@ public final class CoopConnection {
 			CoopMissions.onServerEvent( m );
 			CoopItems.onServerEvent( m );
 			CoopLinks.onServerEvent( m );
+			CoopMobs.onServerEvent( m );
 		}
 
 		@Override

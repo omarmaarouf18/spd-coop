@@ -27,6 +27,7 @@ import com.shatteredpixel.shatteredpixeldungeon.coop.mission.MissionState;
 import com.shatteredpixel.shatteredpixeldungeon.coop.items.CoopItemsState;
 import com.shatteredpixel.shatteredpixeldungeon.coop.levelgen.overlay.OverlayState;
 import com.shatteredpixel.shatteredpixeldungeon.coop.links.TerrainOutbox;
+import com.shatteredpixel.shatteredpixeldungeon.coop.mobs.MobState;
 import com.watabou.utils.Bundlable;
 import com.watabou.utils.Bundle;
 
@@ -63,6 +64,8 @@ public class CoopRun implements Bundlable {
 	public OverlayState overlay = new OverlayState();
 	//permanent terrain changes not sent yet (LINK-02, coop/links), in order
 	public TerrainOutbox terrainOutbox = new TerrainOutbox();
+	//shared mobs (MOB-01, coop/mobs): floors relocated, kills known, XP granted, unsent kills
+	public MobState mobs = new MobState();
 
 	private static final String RUN_ID = "coop_run_id";
 	private static final String SEED = "coop_seed";
@@ -81,6 +84,7 @@ public class CoopRun implements Bundlable {
 	private static final String ITEMS = "coop_items";
 	private static final String OVERLAY = "coop_overlay";
 	private static final String TERRAIN_OUTBOX = "coop_terrain_outbox";
+	private static final String MOBS = "coop_mob_kills";
 
 	@Override
 	public void storeInBundle( Bundle bundle ) {
@@ -101,6 +105,7 @@ public class CoopRun implements Bundlable {
 		bundle.put( ITEMS, items );
 		bundle.put( OVERLAY, overlay );
 		bundle.put( TERRAIN_OUTBOX, terrainOutbox );
+		bundle.put( MOBS, mobs );
 	}
 
 	@Override
@@ -135,6 +140,13 @@ public class CoopRun implements Bundlable {
 		}
 		terrainOutbox = new TerrainOutbox();
 		if (bundle.contains( TERRAIN_OUTBOX )) terrainOutbox.restoreFromBundle( bundle.getBundle( TERRAIN_OUTBOX ) );
+		mobs = new MobState();
+		if (bundle.contains( MOBS )) {
+			mobs.restoreFromBundle( bundle.getBundle( MOBS ) );
+		} else {
+			//saved before MOB-01: its floors were entered without shared mobs
+			mobs.legacy = true;
+		}
 	}
 
 	//"" in the bundle means "none" for the protocol

@@ -54,8 +54,8 @@ import java.util.List;
 // - Level gen sees a neutral hero (fixed class, no items/talents/trinkets/buffs).
 // - Upstream HashMap iterations and the JDK-random Collections.shuffle calls in level gen are made
 //   order-stable / seeded through the helpers below (one-line // COOP: hooks).
-// - Co-op balance (CoopBalance), The Cell's Binding Trap (CoopCell) and item network ids
-//   (CoopItemIds) are applied here.
+// - Co-op balance (CoopBalance), The Cell's Binding Trap (CoopCell), item network ids
+//   (CoopItemIds) and mob network ids (CoopMobIds) are applied here.
 //Everything is a no-op outside co-op runs: vanilla level gen is unchanged.
 public final class CoopLevelGen {
 
@@ -135,6 +135,8 @@ public final class CoopLevelGen {
 		if (!result.contains( ITEM_IDS )) tables = new Bundle();
 		tables.put( floorKey( depth, branch ), CoopItemIds.assign( level, depth, branch ) );
 		result.put( ITEM_IDS, tables );
+		//shared mob ids (MOB-01): they travel with each mob's bundle, so no table is kept
+		CoopMobIds.assign( level, depth, branch );
 		return result;
 	}
 

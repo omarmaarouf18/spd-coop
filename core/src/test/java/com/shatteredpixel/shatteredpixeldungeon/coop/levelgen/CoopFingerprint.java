@@ -26,6 +26,7 @@ package com.shatteredpixel.shatteredpixeldungeon.coop.levelgen;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mimic;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Statue;
+import com.shatteredpixel.shatteredpixeldungeon.coop.mobs.CoopMobs;
 import com.shatteredpixel.shatteredpixeldungeon.coop.test.LevelFingerprint;
 import com.shatteredpixel.shatteredpixeldungeon.items.Heap;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
@@ -50,14 +51,15 @@ import java.util.Map;
  * <ul>
  * <li>{@code items}: every heap item as its full saved state (Item bundle, exact class);</li>
  * <li>{@code mobState}: every mob's full saved state (carried loot, quest NPC rewards, HT);</li>
- * <li>{@code netIds}: the itemNetId of every generated item (D-021).</li>
+ * <li>{@code netIds}: the itemNetId of every generated item (D-021);</li>
+ * <li>{@code mobIds}: the mobNetId of every shared mob (D-023, MOB-01).</li>
  * </ul>
  */
 public final class CoopFingerprint {
 
 	public static final List<String> COMPONENTS = List.of(
 			"meta", "map", "mobs", "traps", "plants", "blobs", "custom", "transitions",
-			"items", "mobState", "netIds");
+			"items", "mobState", "netIds", "mobIds");
 
 	private final Map<String, String> hashes;
 	private final Map<String, String> canonical;
@@ -75,6 +77,7 @@ public final class CoopFingerprint {
 		canonical.put("items", items(level));
 		canonical.put("mobState", mobState(level));
 		canonical.put("netIds", netIds(level));
+		canonical.put("mobIds", mobIds(level));
 
 		Map<String, String> hashes = new LinkedHashMap<>();
 		StringBuilder allInput = new StringBuilder();
@@ -159,16 +162,27 @@ public final class CoopFingerprint {
 		return String.join("\n", entries);
 	}
 
+	private static String mobIds(Level level) {
+		List<String> entries = new ArrayList<>();
+		for (Mob mob : level.mobs) {
+			String id = CoopMobs.idOf(mob);
+			if (id != null) entries.add(id + "=" + mob.pos + ":" + mob.getClass().getName());
+		}
+		entries.sort(null);
+		return String.join("\n", entries);
+	}
+
 	static String state(Item item) {
 		Bundle bundle = new Bundle();
 		bundle.put("item", item);
 		return withoutNetIds(bundle.toString());
 	}
 
-	//since ITM-01 an item's bundle carries its itemNetId ("coop_net_id"); the ids are already the
-	// netIds component, so the state components stay what DET-01 recorded
+	//since ITM-01 an item's bundle carries its itemNetId ("coop_net_id"), since MOB-01 a mob's its
+	// mobNetId ("coop_mob_id"); the ids are the netIds/mobIds components, so the state components
+	// stay what DET-01 recorded
 	static String withoutNetIds(String json) {
-		return json.replaceAll("\"coop_net_id\":\"[^\"]*\",?", "").replace(",}", "}");
+		return json.replaceAll("\"coop_(net|mob)_id\":\"[^\"]*\",?", "").replace(",}", "}");
 	}
 
 	private static String sha256(String text) {

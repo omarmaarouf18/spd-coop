@@ -59,6 +59,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.hero.spells.ClericSpell;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.spells.GuidingLight;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.spells.Stasis;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.DirectableAlly;
+import com.shatteredpixel.shatteredpixeldungeon.coop.mobs.CoopMobs;
 import com.shatteredpixel.shatteredpixeldungeon.effects.CellEmitter;
 import com.shatteredpixel.shatteredpixeldungeon.effects.FloatingText;
 import com.shatteredpixel.shatteredpixeldungeon.effects.Surprise;
@@ -202,6 +203,7 @@ public abstract class Mob extends Char {
 				bundle.put(WANDER_POS_IDX, wanderPosIdx);
 			}
 		}
+		CoopMobs.store( this, bundle ); // COOP: the mobNetId travels with the mob (MOB-01)
 	}
 	
 	@Override
@@ -248,6 +250,7 @@ public abstract class Mob extends Char {
 
 		//no need to actually save this, must be false
 		firstAdded = false;
+		CoopMobs.restore( this, bundle ); // COOP:
 	}
 
 	//mobs need to remember their targets after every actor is added
@@ -1056,6 +1059,7 @@ public abstract class Mob extends Char {
 
 		boolean soulMarked = buff(SoulMark.class) != null;
 
+		CoopMobs.onDeath( this ); // COOP: a shared mob dies in the ally's world too (MOB-01)
 		super.die( cause );
 
 		if (!(this instanceof Wraith)

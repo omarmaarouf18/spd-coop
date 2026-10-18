@@ -240,6 +240,11 @@ Co-op floors are generated with a neutral hero, so both worlds get the same floo
 - **Killed once, gone in both worlds:** when a player kills a shared mob, it dies in the ally's world too (immediately if the ally is on that floor, or it's absent when they arrive). **Both players get the XP.** Loot drops only in the killer's world (mob drops stay per-player, §6A.1).
 - **Respawns are per world:** mobs that spawn during play (SPD's respawn timer) are local to each world, appear at different places for each player, and aren't shared.
 - Bosses keep the shared HP pool (§6A.3). The Cell's wave mobs are local to the prisoner.
+- **Implementation notes (MOB-01):**
+  - **Which mobs are shared:** every mob co-op level gen places on a main floor, numbered by (cell, class). These are not shared and stay local to each world: bosses and minibosses, NPCs, the Wandmaker's rot garden, every mob of a quest branch floor (mine, vault), and anything spawned during play (respawns, splits, summons, waves, the Ebony Mimic).
+  - **Which mobs move:** only those `createMobs` placed in a standard room (not the entrance room, the aquarium, the Imp's shop or the suspicious chest room). Mimics, statues and piranhas keep their cell. A new cell follows `createMobs`' rules: a standard room's free floor, never within 8 tiles of sight or walk of the entrance or in sight of where you arrived, and not on the exit, a door, a trap, a plant or an item. A mob that finds no such cell keeps its generated one.
+  - **Kills:** a real death or being turned into an ally (Wand of Corruption, Siren's Song, Elemental Strike, Ratmogrify's enthrallment) counts. A Ghoul that is only down doesn't. A kill made while offline is saved and sent on reconnect.
+  - **The ally's kills, in your world:** the mob vanishes in a puff, with no loot, no death effects and no on-kill effects. Its XP (vanilla rule: your level vs its max level) is yours if the kill happened on the floor you're on, or on a floor you haven't entered yet (granted when you arrive). A kill on a floor you already left is only cleaned up on your next visit, without XP. You never get one mob's XP twice.
 
 ### 6A.10 Shared keys and locked doors (D-023)
 - **Keys become shared floor loot** (iron/golden/crystal/skeleton keys placed by level gen): the first claim wins (§6A.1).
