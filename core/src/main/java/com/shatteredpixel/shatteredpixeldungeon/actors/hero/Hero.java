@@ -83,6 +83,7 @@ import com.shatteredpixel.shatteredpixeldungeon.coop.Coop;
 import com.shatteredpixel.shatteredpixeldungeon.coop.links.CoopLinks;
 import com.shatteredpixel.shatteredpixeldungeon.coop.mission.CoopMissions;
 import com.shatteredpixel.shatteredpixeldungeon.coop.mission.cell.CoopCell;
+import com.shatteredpixel.shatteredpixeldungeon.coop.mission.downed.CoopDowned;
 import com.shatteredpixel.shatteredpixeldungeon.effects.CellEmitter;
 import com.shatteredpixel.shatteredpixeldungeon.effects.FloatingText;
 import com.shatteredpixel.shatteredpixeldungeon.effects.Speck;
@@ -2241,6 +2242,7 @@ public class Hero extends Char {
 			return;
 		}
 		
+		if (CoopDowned.onHeroDying( this, cause )) return; // COOP: Downed instead of dead, after the Ankh (MEC-02)
 		Actor.fixTime();
 		super.die( cause );
 		Coop.onHeroDied( this ); // COOP: ghost death animation
