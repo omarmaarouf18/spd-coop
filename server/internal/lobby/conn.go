@@ -220,7 +220,18 @@ func (c *conn) handle(data []byte) {
 			c.result(env.Seq, r.relay(c.sess, env, p))
 		}
 	default:
-		c.sendError(env.Seq, protocol.CodeUnknownType, "not a c2s type")
+		if !isGame(p) {
+			c.sendError(env.Seq, protocol.CodeUnknownType, "not a c2s type")
+			return
+		}
+		switch {
+		case r == nil:
+			c.sendError(env.Seq, protocol.CodeNotInRoom, "not in a room")
+		case phase != protocol.PhaseRunning:
+			c.sendError(env.Seq, protocol.CodeInvalidState, "co-op gameplay needs a running room")
+		default:
+			c.result(env.Seq, r.play(c.sess, env, p))
+		}
 	}
 }
 
