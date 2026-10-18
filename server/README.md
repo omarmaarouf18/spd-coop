@@ -35,6 +35,11 @@ PROTOCOL.md §5.6–§5.10, all inside the room actor with an injectable clock (
   frames/s per sender, extra frames dropped silently).
 - **Reply order:** replies to one connection keep its request order (the reader waits for the actor,
   which queues every reply on the connection's single writer queue).
+- **Connected worlds (SRV-03, PROTOCOL.md §5.11):** the shared mob kill registry (`MOB_KILLED` →
+  first kill wins → `MOB_DEAD` to both; a second report is silently ignored; `MOB_KILLS_REQ` →
+  `MOB_KILLS`) and the permanent terrain record per floor (`TERRAIN{persist:true}`: relayed reliably
+  and stored, last write per cell wins, ≤ 512 cells per floor; `TERRAIN_REQ` → `TERRAINS`). Plain
+  door open/close stays relay-only. Both are persisted (`run_kills`, `run_terrain`, schema v4).
 - **Persistence (schema v3):** `run_items` + `run_state` (one JSON document, saved on every change and
   every 5 s while a clock runs). After a restart every clock comes back paused at its last saved value;
   a resume without replay gets the current state re-sent (`MISSION_START`/`MISSION_UPDATE`,
@@ -133,6 +138,19 @@ go run ./cmd/missionprobe                                 # ws://localhost:8080/
 
 Or the whole thing in Docker from the repo root (compose up, probe, compose down): `make mission-probe`.
 
+## Try the connected worlds: `worldprobe`
+
+`cmd/worldprobe` builds `./cmd/server`, starts it on its own port (18093) with a fresh SQLite file in a
+temp dir, and runs three scenarios (`PASS: all 3 scenarios matched`, exit 0): a kill race (both
+players report one mob at once → exactly one `MOB_DEAD` each, one killer), a late arrival (the ally
+reaches the floor later → `MOB_KILLS` + `TERRAINS`), and an unlock + a kill that survive a server
+restart (SIGTERM, same database, both players resume; a repeat kill report is ignored). No Docker needed.
+
+```bash
+cd server
+go run ./cmd/worldprobe                     # or: -server ./path/to/server -port 18094
+```
+
 ## Tests
 
 ```bash
@@ -145,7 +163,9 @@ version reject, room errors, `INVALID_STATE`, rate limit, heartbeat timeout, `fr
 resume with replay, session replacement and restart survival, and (`game_test.go`, on a fake clock)
 every engine path: Cell success/denials/revive/expiry/overtime, Downed in and out of missions, pause,
 resume and grace, reply order, claim race, give/drop, boss pool, twin windows, terrain, Super Sync caps,
-and engine state across a (crash) restart.
+and engine state across a (crash) restart; `connected_test.go`: kill race, late arrival (replayed
+`MOB_DEAD`, `MOB_KILLS`), the terrain record (persist vs relay-only, last write wins, `OPEN_DOOR` not
+stored, whitelist, reliable relay to an offline ally, the cap) and both registries across a restart.
 
 ## Layout
 
@@ -153,11 +173,14 @@ and engine state across a (crash) restart.
 cmd/server      entry point (config, store, hub, HTTP)
 cmd/lobbyprobe  two-client end-to-end probe
 cmd/missionprobe two-client co-op engine probe (SRV-02)
+cmd/worldprobe  connected-worlds probe with its own server and a restart (SRV-03)
 cmd/wsprobe     single connection smoke test (waits for WELCOME)
 internal/config env parsing and validation
 internal/httpapi /healthz and /ws routing
 internal/lobby  hub, per-room actors, connections, limiter (SRV-01); co-op engine (SRV-02:
-                game.go, mission.go, items.go, world.go, clock.go, rules.go)
+                game.go, mission.go, items.go, world.go, clock.go, rules.go); connected
+                worlds (SRV-03: connected.go)
 internal/protocol envelope + message types + fixture contract tests (PRO-01)
-internal/store  SQLite (schema v3: players, runs, run_players, run_items, run_state; token hashes only)
+internal/store  SQLite (schema v4: players, runs, run_players, run_items, run_state, run_kills,
+                run_terrain; token hashes only)
 ```
