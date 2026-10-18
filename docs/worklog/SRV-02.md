@@ -60,3 +60,21 @@
 - **Overtime backstop:** OK that a mission still open `COOP_DOWNED_WINDOW` after its hard cap, with the prisoner standing, fails with the penalty? (Alternative: fail exactly at the deadline, or never end it server-side.)
 - **Aborted mission with a Downed prisoner:** the window stays (frozen while someone is away) and, after the abort, an expiry is a real death outside a mission. Should an abort also clear or revive the prisoner's Downed window?
 - **GIVE back:** a recipient giving the same `itemNetId` back is `already_transferred` (strict "exactly once"). Should a given item be re-giftable by its new owner?
+
+## Review round (owner)
+Approved as is: in-order replies, `SYNC_END{interrupted}` on disconnect, the `SYNC_CMD` 10/s cap, `COOP_CELL_CAP*`, paused-after-restart, and the overtime backstop (open question 1).
+
+Changes (they supersede the matching decisions above):
+- **Abort with a Downed prisoner (open question 2):** an abort now clears the prisoner's Downed window: `REVIVE{target: prisoner, mode:"inPlace", hpPct:25}` to both, then `MISSION_END{aborted}`; no penalty, no `DOWNED_EXPIRED`. Test `TestAbortRevivesDownedPrisoner` (also: the offline prisoner gets both in its replay, nothing expires later).
+- **GIVE (open question 3):** "exactly once" is per request, not per item lifetime. The current owner may `GIVE` again, and each accepted `GIVE` moves ownership. `DENY{not_owner}` when the sender isn't the current owner; the sender's own last `GIVE` of that id again (a retry or a duplicated frame, while the ally still holds it) is `DENY{already_transferred}` and is not applied. A byte-identical duplicated frame is already refused by the seq rule (`ERROR{BAD_MESSAGE}`). Tests in `TestGiveExactlyOnceAndDropShare`: A→B→A→B across floors, a retried GIVE and a duplicated frame each produce exactly one `TRANSFER`.
+  - Limit: without a request id the server can't tell a late resend of an old GIVE from a new one once the item has come back to its sender (A→B, B→A, then A's stale resend would move it again). The client's seq/resume rules make that case unlikely; a request id would need a protocol change.
+
+Extra grants used: `deploy/.env.example` (every `COOP_*` with its default and a comment; the prod compose reads it through `env_file`), `Makefile` (`make mission-probe`: dev compose up `--wait`, `go run ./cmd/missionprobe` with `GOTOOLCHAIN=go$GO_VERSION`, compose down on exit; inline, since `scripts/**` isn't granted), PROTOCOL.md §5.8 (prose only, no schema/fixture change: outside vs inside a Cell mission, and the abort revive).
+
+### Changes per commit (review round, subject only)
+7. `SRV-02: revive a Downed prisoner on abort; let the current owner give again`
+8. `SRV-02: COOP_* in .env.example, make mission-probe, PROTOCOL §5.8 for D-022`
+9. `SRV-02: worklog (review round)`
+
+### Follow-up found
+- PROTOCOL.md §5.7 still says "the same id again is `DENY{already_transferred}` (owned by you) or `DENY{not_owner}` (owned by the other player)", which now reads stricter than the server. Not edited (only §5.8 was granted); suggested wording: "only the current owner may `GIVE`; a repeat of the sender's own last `GIVE` is `already_transferred`, anyone else `not_owner`".
