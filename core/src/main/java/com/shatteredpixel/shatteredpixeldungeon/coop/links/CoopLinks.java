@@ -27,6 +27,7 @@ import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.ShatteredPixelDungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
+import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.coop.Coop;
 import com.shatteredpixel.shatteredpixeldungeon.coop.CoopConnection;
 import com.shatteredpixel.shatteredpixeldungeon.coop.CoopRun;
@@ -42,13 +43,14 @@ import com.watabou.noosa.Game;
 import com.watabou.noosa.audio.Sample;
 
 //door mirroring (LINK-01, game-design §6A.6, PROTOCOL.md §5.10 TERRAIN).
-//A regular door that opens, closes or burns in our world does the same on that cell in the
-// ally's world, while the ally is online on the same floor. Every upstream hook calls one method
-// here, and each is a no-op outside co-op runs.
+//A regular door that our hero opens or closes, or that burns in our world (whatever burnt it),
+// does the same on that cell in the ally's world, while the ally is online on the same floor.
+// Every upstream hook calls one method here, and each is a no-op outside co-op runs.
 //
-//- Sent: Door.enter (DOOR -> OPEN_DOOR), Door.leave (OPEN_DOOR -> DOOR) and Level.destroy
-//  (a DOOR/OPEN_DOOR burnt to EMBERS). Doors changed any other way (unlocking, Skeleton Key,
-//  fire spells forcing a door open) are not sent; locked, crystal and sealed doors never go through
+//- Sent: Door.enter (DOOR -> OPEN_DOOR) when the hero stepped in, Door.leave (OPEN_DOOR -> DOOR)
+//  when the hero stepped (or was knocked) out, and Level.destroy (a DOOR/OPEN_DOOR burnt to
+//  EMBERS). Mobs opening and closing doors stay in our world. Doors changed any other way
+//  (unlocking, Skeleton Key, fire spells forcing a door open) are not sent; locked, crystal and sealed doors never go through
 //  these hooks as a regular door.
 //- Applied: only on a cell that is a regular door (DOOR/OPEN_DOOR) in our world too, so a locked
 //  door, a sealed Cell door (MEC-01) or a door we already burnt never changes. A door never closes
@@ -120,11 +122,15 @@ public final class CoopLinks {
 	private static Link link = LIVE;
 	//a received change is being applied: the hooks stay quiet
 	private static boolean applying = false;
+	//the door the hero last opened (cell, depth, branch): a knockback (WandOfBlastWave.throwChar)
+	// moves the hero off it before Door.leave runs
+	private static int heroDoor = -1, heroDoorDepth, heroDoorBranch;
 
 	private CoopLinks() {}
 
 	public static void link( Link l ) {
 		link = l == null ? LIVE : l;
+		heroDoor = -1;
 	}
 
 	static boolean regularDoor( int tile ) {
@@ -138,13 +144,30 @@ public final class CoopLinks {
 
 	// ---- our world changed (actor or GL thread) ----
 
-	//Door.enter / Door.leave: the door at pos on the current floor just opened or closed
+	//Door.enter / Door.leave: the door at pos on the current floor just opened or closed.
+	// Only the hero's own door actions are mirrored.
 	public static void onDoor( int pos ) {
 		if (!Coop.isCoopRun() || applying) return;
 		Level level = Dungeon.level;
-		if (level == null || pos < 0 || pos >= level.length()) return;
+		Hero hero = Dungeon.hero;
+		if (level == null || hero == null || pos < 0 || pos >= level.length()) return;
 		int tile = level.map[pos];
-		if (regularDoor( tile )) send( pos, tile );
+		if (tile == Terrain.OPEN_DOOR) {
+			if (Actor.findChar( pos ) != hero) return;
+			heroDoor = pos;
+			heroDoorDepth = Dungeon.depth;
+			heroDoorBranch = Dungeon.branch;
+		} else if (tile == Terrain.DOOR) {
+			//Char.move and the hero's dash abilities close the door before the hero leaves the cell;
+			// a knockback closes it after, with nobody left in the doorway
+			boolean knockedOut = heroDoor == pos && heroDoorDepth == Dungeon.depth && heroDoorBranch == Dungeon.branch
+					&& Actor.findChar( pos ) == null;
+			if (hero.pos != pos && !knockedOut) return;
+			heroDoor = -1;
+		} else {
+			return;
+		}
+		send( pos, tile );
 	}
 
 	//Level.destroy: a regular door at pos (was) burnt through

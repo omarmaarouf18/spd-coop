@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
+import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.coop.Coop;
 import com.shatteredpixel.shatteredpixeldungeon.coop.CoopTestRuns;
@@ -111,7 +112,10 @@ class CoopLinksLiveTest {
 			}
 			System.out.println( "room " + code + ", door cell " + door );
 
-			//A's world: A steps into the door
+			//A's world: A's hero steps into the door
+			int away = Dungeon.hero.pos;
+			Dungeon.hero.pos = door;
+			Actor.add( Dungeon.hero );
 			CoopLinks.link( a.link() );
 			Door.enter( door );
 			assertEquals( Terrain.OPEN_DOOR, level.map[door] );
@@ -126,7 +130,9 @@ class CoopLinksLiveTest {
 
 			//A's world (door open there too): A walks out, the door shuts
 			CoopLinks.link( a.link() );
+			Dungeon.hero.pos = door;
 			Door.leave( door );
+			Dungeon.hero.pos = away;
 			assertEquals( Terrain.DOOR, level.map[door], "closed for A" );
 			//B's world: open, gets the close
 			Level.set( door, Terrain.OPEN_DOOR, level );
@@ -139,6 +145,7 @@ class CoopLinksLiveTest {
 			//no echo: B's applied changes never went back to A
 			assertNull( a.poll( "terrain:", 1 ), "A received a TERRAIN echo" );
 		} finally {
+			if (Dungeon.hero != null) Actor.remove( Dungeon.hero );
 			a.stop();
 			b.stop();
 		}

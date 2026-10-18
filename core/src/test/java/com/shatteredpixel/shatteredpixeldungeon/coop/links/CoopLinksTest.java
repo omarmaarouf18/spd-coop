@@ -31,6 +31,7 @@ import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.GamesInProgress;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Rat;
 import com.shatteredpixel.shatteredpixeldungeon.coop.Coop;
 import com.shatteredpixel.shatteredpixeldungeon.coop.CoopTestRuns;
 import com.shatteredpixel.shatteredpixeldungeon.coop.net.Protocol;
@@ -54,9 +55,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-//LINK-01: door open/close/burn goes out as TERRAIN only while the ally is on the floor, a received
-// TERRAIN changes only a regular door and never echoes, a door never shuts on a char or a heap,
-// and nothing at all happens outside co-op runs
+//LINK-01: the hero's door open/close (never a mob's) and any door burn go out as TERRAIN only
+// while the ally is on the floor, a received TERRAIN changes only a regular door and never echoes,
+// a door never shuts on a char or a heap, and nothing at all happens outside co-op runs
 class CoopLinksTest {
 
 	private static final long SEED = 123456789L;
@@ -91,9 +92,9 @@ class CoopLinksTest {
 		Level level = coopFloor1();
 		int door = doorCell( level, 0 );
 
-		Door.enter( door );
+		heroIn( door );
 		assertEquals( Terrain.OPEN_DOOR, level.map[door] );
-		Door.leave( door );
+		heroOut( door, cellOf( level, Terrain.EMPTY ) );
 		assertEquals( Terrain.DOOR, level.map[door] );
 		level.destroy( door );
 		assertEquals( Terrain.EMBERS, level.map[door] );
@@ -109,8 +110,9 @@ class CoopLinksTest {
 
 		//ally offline or elsewhere: our door still works, nothing goes out
 		link.allyOn = false;
-		Door.enter( a );
-		Door.leave( a );
+		int away = Dungeon.hero.pos;
+		heroIn( a );
+		heroOut( a, away );
 		level.destroy( a );
 		assertEquals( Terrain.EMBERS, level.map[a] );
 		assertTrue( link.sent.isEmpty() );
@@ -130,13 +132,59 @@ class CoopLinksTest {
 
 		//a door that stays open (a heap on it) sends no close
 		int c = doorCell( level, 1 );
-		Door.enter( c );
+		heroIn( c );
 		link.sent.clear();
 		level.drop( new PotionOfHealing(), c );
-		Door.leave( c );
+		heroOut( c, away );
 		assertEquals( Terrain.OPEN_DOOR, level.map[c] );
 
 		assertTrue( link.sent.isEmpty(), link.sent.toString() );
+	}
+
+	@Test
+	void onlyTheHerosDoorActionsGoOutButAnyBurnDoes() {
+		Level level = coopFloor1();
+		int a = doorCell( level, 0 ), b = doorCell( level, 1 );
+		int away = Dungeon.hero.pos;
+
+		//a mob walks through door a: it opens and shuts in our world only
+		Rat rat = new Rat();
+		rat.pos = a;
+		Actor.add( rat );
+		Door.enter( a );
+		assertEquals( Terrain.OPEN_DOOR, level.map[a] );
+		Door.leave( a );
+		rat.pos = cellOf( level, Terrain.EMPTY );
+		assertEquals( Terrain.DOOR, level.map[a] );
+		assertTrue( link.sent.isEmpty(), link.sent.toString() );
+
+		//the hero walks through door b: both go out
+		heroIn( b );
+		heroOut( b, away );
+		assertEquals( Arrays.asList( "1 0 " + b + " 6", "1 0 " + b + " 5" ), link.sent );
+		link.sent.clear();
+
+		//knocked out of a doorway (the hero is already off the cell when Door.leave runs): sent
+		heroIn( b );
+		Dungeon.hero.pos = away;
+		Door.leave( b );
+		assertEquals( Arrays.asList( "1 0 " + b + " 6", "1 0 " + b + " 5" ), link.sent );
+		link.sent.clear();
+
+		//the hero teleported out of an open door, then a mob walks out of it: not ours
+		heroIn( b );
+		Dungeon.hero.pos = away;
+		rat.pos = b;
+		Door.leave( b );
+		rat.pos = cellOf( level, Terrain.EMPTY );
+		assertEquals( Terrain.DOOR, level.map[b] );
+		assertEquals( Collections.singletonList( "1 0 " + b + " 6" ), link.sent );
+		link.sent.clear();
+
+		//a burn is mirrored whatever caused it, with nobody near the door
+		level.destroy( a );
+		assertEquals( Collections.singletonList( "1 0 " + a + " 9" ), link.sent );
+		Actor.remove( rat );
 	}
 
 	// ---- receiving ----
@@ -166,7 +214,9 @@ class CoopLinksTest {
 		//after a received open, our own close goes out as usual (no loop: one message per change)
 		int other = doorCell( level, 1 );
 		CoopLinks.onServerEvent( terrain( ALLY, 1, 0, other, Terrain.OPEN_DOOR ) );
-		Door.leave( other );
+		int away = Dungeon.hero.pos;
+		Dungeon.hero.pos = other;
+		heroOut( other, away );
 		assertEquals( Collections.singletonList( "1 0 " + other + " 5" ), link.sent );
 	}
 
@@ -212,7 +262,6 @@ class CoopLinksTest {
 
 		//our hero stands in door a
 		Dungeon.hero.pos = a;
-		Actor.add( Dungeon.hero );
 		CoopLinks.onServerEvent( terrain( ALLY, 1, 0, a, Terrain.DOOR ) );
 		assertEquals( Terrain.OPEN_DOOR, level.map[a], "skipped: a char is in the doorway" );
 
@@ -270,7 +319,20 @@ class CoopLinksTest {
 		Level level = Dungeon.newLevel();
 		Dungeon.level = level;
 		Dungeon.hero.pos = cellOf( level, Terrain.EMPTY );
+		Actor.add( Dungeon.hero );
 		return level;
+	}
+
+	//the hero steps into a closed door (Char.move -> Level.occupyCell -> Door.enter)
+	private static void heroIn( int door ) {
+		Dungeon.hero.pos = door;
+		Door.enter( door );
+	}
+
+	//the hero steps out of an open door (Char.move calls Door.leave before moving)
+	private static void heroOut( int door, int to ) {
+		Door.leave( door );
+		Dungeon.hero.pos = to;
 	}
 
 	//the n-th regular closed door of the floor (seeded: the same cells every run)
