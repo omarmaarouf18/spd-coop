@@ -233,11 +233,14 @@ Co-op floors are generated with a neutral hero, so both worlds get the same floo
 - **Keys become shared floor loot** (iron/golden/crystal/skeleton keys placed by level gen): the first claim wins (§6A.1).
 - **Unlocking mirrors:** when a player unlocks a locked door, a crystal door or the locked exit in their world, the same door unlocks in the ally's world (`TERRAIN`, any cause, same floor or applied on arrival). So whoever finds the key opens the way for both.
 - Doors you lock (skeleton key's hero-locked door) mirror too.
+- **How (LINK-02):** the change goes to the server as a permanent one, whether or not the ally is on the floor; the server keeps it for the floor, so an ally arriving later finds the door open. Offline, it waits and goes out once you're connected again. In the ally's world the door just changes: no key is used there, and nothing happens if that door isn't locked there any more. A door is never locked on someone standing in it (it locks the next time the change is fetched, on floor entry). The Cell's sealed doors (§4) are never sent, and a seal is never opened by the ally's change.
 
 ### 6A.11 Shared traps (D-023)
 - **Triggering a trap consumes it in both worlds:** the trap fires only in the world of the player who stepped on it. In the ally's world it becomes an inactive (used) trap without firing.
 - **Discovering a trap reveals it in both worlds:** a hidden trap found by searching (or revealed in any other way) becomes visible to the ally too.
 - Co-op-specific traps (the Binding Trap, MEC-01) follow their own rules and aren't mirrored.
+- **How (LINK-02):** a trap counts as triggered when it is used up in your world (whatever set it off: you, a mob, a thrown item). Traps that stay armed after going off (gateway, flashing, gripping) aren't used up in either world; if they were hidden, they're revealed. In the ally's world the trap becomes used (or visible) without firing. Like doors, these changes are kept by the server for the floor, so an ally arriving later finds them, and they only ever move forward (a used trap never comes back). Discovering the Binding Trap is shared; triggering it is MEC-01's.
+- **Not covered yet:** traps used up by another trap's chain reaction (Flock, Summoning, Distortion), by a Reclaim Trap, or after a time freeze (Timekeeper's Hourglass, Swiftthistle) don't go through the trigger hook (LINK-02 open question). Traps revealed by Trap Mechanism on floor entry (§6A.8) stay per player.
 
 ## 7. Co-op room catalog (puzzles)
 
