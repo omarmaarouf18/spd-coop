@@ -29,6 +29,7 @@ import com.shatteredpixel.shatteredpixeldungeon.coop.ghost.CoopGhosts;
 import com.shatteredpixel.shatteredpixeldungeon.coop.mission.CoopMissions;
 import com.shatteredpixel.shatteredpixeldungeon.coop.items.CoopItems;
 import com.shatteredpixel.shatteredpixeldungeon.coop.links.CoopLinks;
+import com.shatteredpixel.shatteredpixeldungeon.coop.mission.downed.CoopDowned;
 import com.shatteredpixel.shatteredpixeldungeon.coop.net.Backoff;
 import com.shatteredpixel.shatteredpixeldungeon.coop.net.CoopClient;
 import com.shatteredpixel.shatteredpixeldungeon.coop.net.CoopSession;
@@ -257,6 +258,7 @@ public final class CoopConnection {
 		//CLAIMED / CLAIMS / DENY{taken} / DROP_SHARE / TRANSFER (ITM-01); each ignores the others' types
 		@Override
 		public void onServerEvent( Message m ) {
+			CoopDowned.onServerEvent( m ); // COOP: a DENY gives a waiting Scroll of Recall back (MEC-02); first, so its listener is in
 			CoopMissions.onServerEvent( m );
 			CoopItems.onServerEvent( m );
 			CoopLinks.onServerEvent( m );

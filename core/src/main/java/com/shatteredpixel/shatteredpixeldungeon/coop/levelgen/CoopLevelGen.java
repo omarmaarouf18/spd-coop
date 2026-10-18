@@ -28,6 +28,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.coop.Coop;
 import com.shatteredpixel.shatteredpixeldungeon.coop.mission.cell.CoopCell;
+import com.shatteredpixel.shatteredpixeldungeon.coop.mission.downed.RecallLayout;
 import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
 import com.shatteredpixel.shatteredpixeldungeon.levels.features.LevelTransition;
 import com.watabou.utils.Bundle;
@@ -127,6 +128,8 @@ public final class CoopLevelGen {
 		CoopBalance.scaleMobs( level );
 		//The Cell's hidden Binding Trap (MEC-01): its own seeded stream, after the floor is built
 		CoopCell.placeTrap( level );
+		//Scrolls of Recall (MEC-02): own seeded streams too, before the item ids are numbered
+		RecallLayout.place( level );
 
 		Bundle tables = result.getBundle( ITEM_IDS );
 		if (!result.contains( ITEM_IDS )) tables = new Bundle();

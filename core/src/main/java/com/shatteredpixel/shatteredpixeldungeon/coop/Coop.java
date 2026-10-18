@@ -33,6 +33,7 @@ import com.shatteredpixel.shatteredpixeldungeon.coop.ghost.CoopGhosts;
 import com.shatteredpixel.shatteredpixeldungeon.coop.ghost.GhostLayer;
 import com.shatteredpixel.shatteredpixeldungeon.coop.ghost.HeroSnapshot;
 import com.shatteredpixel.shatteredpixeldungeon.coop.levelgen.CoopLevelGen;
+import com.shatteredpixel.shatteredpixeldungeon.coop.mission.cell.CoopCell;
 import com.shatteredpixel.shatteredpixeldungeon.coop.ui.AllyCompass;
 import com.shatteredpixel.shatteredpixeldungeon.coop.ui.AllyStatusChip;
 import com.shatteredpixel.shatteredpixeldungeon.coop.ui.CoopHud;
@@ -58,6 +59,10 @@ import java.util.Map;
 //facade for the co-op mod: every // COOP: hook in an upstream file calls one method here, and
 // each is a no-op for single-player runs (AGENTS.md rules 5–6).
 public final class Coop {
+
+	static {
+		CoopCell.install(); // COOP: The Cell's listener and reward from the first co-op hook on (run start or restore)
+	}
 
 	public static final String BUNDLE_KEY = "coop_run";
 

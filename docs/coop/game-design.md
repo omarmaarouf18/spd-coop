@@ -129,6 +129,18 @@ Code: `coop/mission/cell` (facade `CoopCell`). Co-op runs only.
 - **Throwing** a Potion of Healing at your ally's **ghost** while the ally is Downed (same floor, ghost visible) revives them **in place** at 25% HP. Drinking one yourself while Downed isn't possible (you're paralysed).
 - So **Healing** = revive here, needs you nearby. **Recall** = revive from any floor, at the region start (outside The Cell).
 
+### 5.4 Implementation (MEC-02) ✅
+Code: `coop/mission/downed` (facade `CoopDowned`, a MEC-00 `MissionListener`), `coop/items/ScrollOfRecall`. Co-op runs only.
+- **Going down:** `Hero.die`, after the Ankh block (an Ankh always saves first): HP 1, a `Downed` buff (paralysed, mobs don't see the hero) plus `Invulnerability`, then `DOWNED{cause}` (the killer's class). It's sent again every 5 s until the server's `ALLY_DOWNED` for us is in the mirror (a reconnect can't lose it). Another death while Downed is swallowed.
+- **Time while Downed:** a paralysed hero would let the world race through turns, so each Downed turn waits 5 s of running clock (`ForcedTurns.WAIT_MS`) on the actor thread: the world moves one turn per forced-turn period, and stands still while the clock is held (disconnect, pause).
+- **Scroll of Recall:** READ with a Downed ally (the mirror's Downed players, never ourselves, never a player who is out) sends `USE_RECALL{via:"recall"}` from any floor. The scroll waits on the hero (`RecallPending`, saved): `REVIVE` of that ally uses it up; a `DENY` (ally_offline, ally_other_floor, invalid_state, downed, not_downed), their death, the mission failing, or 30 s of running link with no answer gives it back. No Downed ally: a hint, the scroll stays.
+- **Potion of Healing:** a thrown Potion of Healing (exactly that class) landing on the ally's visible ghost cell, with the ally Downed and online on this floor, sends `USE_RECALL{via:"healing"}` and is used up with no shatter. Anything else (a miss, another potion, the ally elsewhere or standing) is a normal throw.
+- **REVIVE for us:** the Downed state ends, HP = hpPct of HT (25%), and with `mode:"regionStart"` `Mode.RETURN` to `((depth−1)/5)×5+1` (the same travel as MEC-00's penalty; held in place during a sealed boss fight). `inPlace` (Healing, any revive during a Cell, an abort): stays.
+- **DOWNED_EXPIRED for us:** the real vanilla death (`Hero.die`, cause `DownedExpiry`: "Bled out while downed" in the rankings), on the actor thread at the Downed buff's next act. It is saved, so a reload still dies. For the ally: a log line and a window ("your ally has fallen and is out of this run"); they play on.
+- **Inside The Cell (D-022):** `MISSION_END{failed}` clears the Downed prisoner (both worlds drop them from the mirror's Downed list), sets 25% HP, and MEC-00's penalty takes both players to the region start. An abort comes as `REVIVE{inPlace, 25}` then `MISSION_END{aborted}`. MEC-01's waves already skip a Downed prisoner.
+- **The ally's view:** their ghost shows the paralysed state while they're Downed (`DownedFx`).
+- **Where Recall comes from:** co-op level gen, right after the floor is built and before the item ids are numbered, on its own generators (`seedForDepth ^ salt`, the level's stream never moves). One per region in a chest on one of the region's four regular floors (the floor is drawn from the region start's seed), on plain floor in a standard room; and a 50% chance per shop floor of one for sale in the shop. They are shared floor loot with an itemNetId like any generated item (first claim wins).
+
 ## 6. Potion of **Super Sync** ✅ (concept) / ❓ (control model)
 
 An emergency potion. The drinker's ghost **materializes** in the ally's world: it becomes visible and solid, and it can **attack the ally's monsters**.
