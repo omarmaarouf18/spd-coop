@@ -132,3 +132,12 @@ To change a decision, add a new entry that supersedes it. Don't edit history.
 - **Not done:** identical mob positions/movement across worlds. That would need one shared simulation (rejected in D-004).
 - **Tasks:** `PRO-03` (protocol: `MOB_KILLED`/`MOB_KILLS_REQ`, a `TERRAIN` tile whitelist extended to locked/crystal doors, the locked exit and trap states, plus trap reveal), `SRV-03` (kill registry persisted per run, relay rules), `MOB-01` (mob ids, per-player placement, kill sync, shared XP), `LINK-02` (locked doors + traps), `ITM-02` (keys as shared loot).
 - **Balance note:** the co-op mob HP ×1.2 (D-021) assumed each player fights alone. Revisit in BAL now that kills are shared.
+
+### D-024 — Connected-worlds and mission details (owner, from the PRO-03/SRV-03, MEC-01, LINK-02 and MEC-02 reviews)
+- **Status:** Accepted (2026-10-18)
+- **Burned doors persist:** the server stores EMBERS with the permanent terrain changes, so a player who arrives later sees the burnt door.
+- **XP for an ally's kill (MOB-01):** granted when the kill is applied in your world: at once if you're on that floor, otherwise when you enter it. Kills on floors you already left give no XP (revisit in BAL-01).
+- **The Cell:** no Binding Traps on quest-branch floors (mines, vault). The first wave comes at once. Wave sizes and lethal overtime are tuned in BAL-01.
+- **LINK-02:** a used trap is sent from `Trap.disarm()` (covers every way a trap is used up). Permanent traps send nothing when they fire. The outbox of unsent terrain changes is saved in the run (`coop_terrain_outbox`). A trap revealed by your own Trap Mechanism trinket stays yours (DET-02); a trap you find yourself is revealed for both.
+- **Keys:** until ITM-02 lands, a key can exist in both worlds (known gap, not a LINK-02 bug). ITM-02 makes keys shared loot: first claim wins and the key vanishes from the other world.
+- **Downed (MEC-02):** while Downed, the world advances one turn every 5 s of running clock (same pace as forced turns), instead of vanilla's paralysed fast-forward. Scroll of Recall: one guaranteed per region in a chest, 50% chance of shop stock at 60 gold (tune in BAL-01).
