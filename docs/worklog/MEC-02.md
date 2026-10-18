@@ -105,3 +105,9 @@
 ## Open questions
 - The pacing choice (one Downed turn per 5 s of running clock, on the actor thread) instead of a racing paralysis: confirm.
 - Shop stock chance (50% per shop floor) and price (60 gold base value): BAL-01?
+
+## Owner answers (after the first report)
+- Pacing (one Downed turn per 5 s of running clock): **approved**; recorded in D-024 on dev.
+- Shop stock 50% / 60 gold: kept, to tune in BAL-01 (D-024).
+- MEC-01's static `CoopCell.install()` blocks: left as they are (follow-up).
+- Ghost downed pose after a scene change: **not fixed here.** The ghost sprite is (re)created only in `coop/ghost/GhostLayer`'s constructor (called from `Coop.addGhostLayer`). Re-applying the pose from CoopDowned's state needs a call there (`CoopDowned.onGhostLayer( this );` → re-add `DownedFx` while the ally is Downed in the mirror) plus its import: two lines in `coop/ghost`, which the owner asked to clear first. Follow-up for UI-01, or a one-commit change in MEC-02 once granted.
