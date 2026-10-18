@@ -25,6 +25,7 @@ Logic Link PD: a non-commercial online 2-player co-op mod of Shattered Pixel Dun
 
 **Step 2:** `MEC-00` client mission framework (forced turns, mission HUD, timer) + `ITM-01` item network IDs, shared floor loot, drop-to-ally (D-021) + `LINK-01` door mirroring + `DET-02` per-player loot overlay (after DET-01)
 **Step 3:** `MEC-01` The Cell (Binding Trap, D-020) · `MEC-02` Downed + Scroll of Recall + Healing-potion revive · `BOSS-01` shared boss HP
+**Step 3b (parallel with step 3, D-023):** `PRO-03`+`SRV-03` (protocol + server for shared mobs/locked doors/traps) · `MOB-01` shared monsters in different places · `LINK-02` locked doors + traps · `ITM-02` shared keys
 **Step 4:** `SYN-01` Super Sync (player-controlled projection + Remote View)
 **Step 5:** `ROOM-01` co-op room framework + puzzles (Twin Door, Twin Switches, Mirror Lock, Pressure Bridge, Rune Wall, Totem Shield, Dark Floor, Item Shrine) · `GATE-01` mandatory co-op gates
 **Step 6:** `BAL-01` tuning, `UI-01` strings/sprites/tutorial, `QA-01` full 1→26 co-op run

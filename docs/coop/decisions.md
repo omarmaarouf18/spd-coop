@@ -119,3 +119,16 @@ To change a decision, add a new entry that supersedes it. Don't edit history.
 - **Forced turns:** they keep running even with the pause menu open. Real absence (disconnect, app in background) is covered by the server pause (D-005). A client-side pause exception would let the prisoner freeze their world so the waves never reach them.
 - **Downed expiry inside a Cell mission:** `MISSION_END{failed, penalty}` takes precedence over `DOWNED_EXPIRED`. The prisoner is **not** killed. Both players get the penalty (gold −25%, `Mode.RETURN` to the region start), and the prisoner arrives there at 25% HP. Outside missions, `DOWNED_EXPIRED` runs the real death path per `COOP_DEATH_MODE` (default `player_out`). MEC-02 implements it, and PROTOCOL.md §5.8 is clarified there.
 - **Penalty timing:** a failed-mission penalty is applied once the hero isn't in a locked boss fight. A dead hero gets neither reward nor penalty.
+
+### D-023 — Worlds are parallel but connected: shared monsters (different places), shared keys/locked doors, shared traps
+- **Status:** Accepted (2026-10-18, owner: "the two worlds parallel but not separate")
+- **Decision:** game-design §6A.9–§6A.11:
+  - level-gen mobs have a stable `mobNetId` and are placed at **different per-player positions** (a runtime overlay, so the shared floor is unchanged);
+  - a kill in one world removes that mob in the other, and both players get the XP;
+  - respawns are per world;
+  - keys are shared loot, and unlocking mirrors to the ally's world;
+  - a triggered trap is consumed in both worlds (it fires only for the stepper);
+  - a discovered trap is revealed in both.
+- **Not done:** identical mob positions/movement across worlds. That would need one shared simulation (rejected in D-004).
+- **Tasks:** `PRO-03` (protocol: `MOB_KILLED`/`MOB_KILLS_REQ`, a `TERRAIN` tile whitelist extended to locked/crystal doors, the locked exit and trap states, plus trap reveal), `SRV-03` (kill registry persisted per run, relay rules), `MOB-01` (mob ids, per-player placement, kill sync, shared XP), `LINK-02` (locked doors + traps), `ITM-02` (keys as shared loot).
+- **Balance note:** the co-op mob HP ×1.2 (D-021) assumed each player fights alone. Revisit in BAL now that kills are shared.

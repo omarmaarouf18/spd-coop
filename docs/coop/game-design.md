@@ -211,6 +211,23 @@ Co-op floors are generated with a neutral hero, so both worlds get the same floo
 - **Trinkets:** Cracked Spyglass hidden extra loot; Mimic Tooth's Ebony Mimic (a local mob with local loot); Trap Mechanism reveals the same share of the floor's hidden traps as in vanilla (never a co-op trap). **Not restored in co-op:** effects that would change the shared floor itself: Mossy Clump / Trap Mechanism level feelings, Mimic Tooth turning chests into mimics, Exotic Crystals / Rat Skull exotic items and mobs at level gen, Parchment Scrap on the Sad Ghost's reward. Their runtime effects (mob drops, grass, spawns, quest rewards made later) still apply.
 - **Duplicate artifacts:** co-op level gen doesn't know which artifacts you got at runtime (a drop, transmutation, the Rogue's cloak), so it can place one you already own. On entry, in your world, such an artifact turns into another one from your own artifact deck (a ring once it's empty). It keeps its place in the shared pool: whoever claims that slot first gets their world's version, and it vanishes from the other world.
 
+### 6A.9 Shared monsters, each in its own place (D-023)
+- **One set of monsters per floor, shared by both worlds.** Every mob that co-op level gen places gets a stable `mobNetId` (`depth:branch:mobIndex`, the same idea as `itemNetId`).
+- **Different positions per world:** when a player first enters a floor, their world re-places those same mobs at **different, per-player seeded positions** (valid spawn cells only, never in sight of the entrance). This is a runtime overlay like §6A.8, so the shared floor and the co-op goldens don't change. The two players meet the same monsters, but in different places.
+- **Killed once, gone in both worlds:** when a player kills a shared mob, it dies in the ally's world too (immediately if the ally is on that floor, or it's absent when they arrive). **Both players get the XP.** Loot drops only in the killer's world (mob drops stay per-player, §6A.1).
+- **Respawns are per world:** mobs that spawn during play (SPD's respawn timer) are local to each world, appear at different places for each player, and aren't shared.
+- Bosses keep the shared HP pool (§6A.3). The Cell's wave mobs are local to the prisoner.
+
+### 6A.10 Shared keys and locked doors (D-023)
+- **Keys become shared floor loot** (iron/golden/crystal/skeleton keys placed by level gen): the first claim wins (§6A.1).
+- **Unlocking mirrors:** when a player unlocks a locked door, a crystal door or the locked exit in their world, the same door unlocks in the ally's world (`TERRAIN`, any cause, same floor or applied on arrival). So whoever finds the key opens the way for both.
+- Doors you lock (skeleton key's hero-locked door) mirror too.
+
+### 6A.11 Shared traps (D-023)
+- **Triggering a trap consumes it in both worlds:** the trap fires only in the world of the player who stepped on it. In the ally's world it becomes an inactive (used) trap without firing.
+- **Discovering a trap reveals it in both worlds:** a hidden trap found by searching (or revealed in any other way) becomes visible to the ally too.
+- Co-op-specific traps (the Binding Trap, MEC-01) follow their own rules and aren't mirrored.
+
 ## 7. Co-op room catalog (puzzles)
 
 All rooms are seeded, appear in both worlds, use role A/B asymmetry, and keep their state on the server.
