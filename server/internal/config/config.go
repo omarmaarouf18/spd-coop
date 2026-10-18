@@ -28,8 +28,10 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Defaults for unset variables.
@@ -48,9 +50,39 @@ type Config struct {
 	// appVersionCode) accepted at the handshake: comma-separated integers in
 	// ALLOWED_VERSIONS. Empty means no version gate (PROTOCOL.md §8).
 	AllowedVersions []int
+	// Coop holds the COOP_* gameplay settings (server/README.md).
+	Coop Coop
 }
 
-// Load reads PORT, DB_PATH, LOG_LEVEL and ALLOWED_VERSIONS through getenv
+// Coop is the validated co-op gameplay configuration. Durations use Go
+// syntax ("30s", "4m", "1500ms").
+type Coop struct {
+	CellWaveInterval time.Duration // COOP_CELL_WAVE_INTERVAL
+	CellCap          time.Duration // COOP_CELL_CAP
+	CellCapPerRegion time.Duration // COOP_CELL_CAP_PER_REGION
+	DownedWindow     time.Duration // COOP_DOWNED_WINDOW
+	PauseGrace       time.Duration // COOP_PAUSE_GRACE
+	TwinWindow       time.Duration // COOP_TWIN_WINDOW
+	BossHPScale      float64       // COOP_BOSS_HP_SCALE
+	DeathMode        string        // COOP_DEATH_MODE
+}
+
+// DefaultCoop is the configuration with every COOP_* variable unset.
+var DefaultCoop = Coop{
+	CellWaveInterval: 30 * time.Second,
+	CellCap:          4 * time.Minute,
+	CellCapPerRegion: 15 * time.Second,
+	DownedWindow:     30 * time.Second,
+	PauseGrace:       90 * time.Second,
+	TwinWindow:       2 * time.Second,
+	BossHPScale:      1.8,
+	DeathMode:        "player_out",
+}
+
+// DeathModes are the accepted COOP_DEATH_MODE values (v1: one).
+var DeathModes = []string{"player_out"}
+
+// Load reads PORT, DB_PATH, LOG_LEVEL, ALLOWED_VERSIONS and COOP_* through getenv
 // (os.Getenv in production) and returns every validation error at once.
 func Load(getenv func(string) string) (Config, error) {
 	cfg := Config{Port: DefaultPort, DBPath: DefaultDBPath}
@@ -92,5 +124,45 @@ func Load(getenv func(string) string) (Config, error) {
 		}
 	}
 
+	cfg.Coop, errs = loadCoop(getenv, errs)
 	return cfg, errors.Join(errs...)
+}
+
+func loadCoop(getenv func(string) string, errs []error) (Coop, []error) {
+	c := DefaultCoop
+	dur := func(name string, dst *time.Duration, lo, hi time.Duration) {
+		v := strings.TrimSpace(getenv(name))
+		if v == "" {
+			return
+		}
+		d, err := time.ParseDuration(v)
+		if err != nil || d < lo || d > hi {
+			errs = append(errs, fmt.Errorf("%s must be a duration in %s..%s (e.g. \"30s\"), got %q", name, lo, hi, v))
+			return
+		}
+		*dst = d
+	}
+	dur("COOP_CELL_WAVE_INTERVAL", &c.CellWaveInterval, time.Second, 10*time.Minute)
+	dur("COOP_CELL_CAP", &c.CellCap, 10*time.Second, time.Hour)
+	dur("COOP_CELL_CAP_PER_REGION", &c.CellCapPerRegion, 0, 10*time.Minute)
+	dur("COOP_DOWNED_WINDOW", &c.DownedWindow, time.Second, 10*time.Minute)
+	dur("COOP_PAUSE_GRACE", &c.PauseGrace, time.Second, time.Hour)
+	dur("COOP_TWIN_WINDOW", &c.TwinWindow, 100*time.Millisecond, 30*time.Second)
+
+	if v := strings.TrimSpace(getenv("COOP_BOSS_HP_SCALE")); v != "" {
+		f, err := strconv.ParseFloat(v, 64)
+		if err != nil || !(f >= 0.1 && f <= 10) {
+			errs = append(errs, fmt.Errorf("COOP_BOSS_HP_SCALE must be a number in 0.1..10, got %q", v))
+		} else {
+			c.BossHPScale = f
+		}
+	}
+	if v := strings.TrimSpace(getenv("COOP_DEATH_MODE")); v != "" {
+		if !slices.Contains(DeathModes, v) {
+			errs = append(errs, fmt.Errorf("COOP_DEATH_MODE must be one of %v, got %q", DeathModes, v))
+		} else {
+			c.DeathMode = v
+		}
+	}
+	return c, errs
 }
