@@ -141,3 +141,10 @@ To change a decision, add a new entry that supersedes it. Don't edit history.
 - **LINK-02:** a used trap is sent from `Trap.disarm()` (covers every way a trap is used up). Permanent traps send nothing when they fire. The outbox of unsent terrain changes is saved in the run (`coop_terrain_outbox`). A trap revealed by your own Trap Mechanism trinket stays yours (DET-02); a trap you find yourself is revealed for both.
 - **Keys:** until ITM-02 lands, a key can exist in both worlds (known gap, not a LINK-02 bug). ITM-02 makes keys shared loot: first claim wins and the key vanishes from the other world.
 - **Downed (MEC-02):** while Downed, the world advances one turn every 5 s of running clock (same pace as forced turns), instead of vanilla's paralysed fast-forward. Scroll of Recall: one guaranteed per region in a chest, 50% chance of shop stock at 60 gold (tune in BAL-01).
+
+### D-025 — Mandatory co-op gates: one per region, never on a quest floor (one task per floor)
+- **Status:** Accepted (2026-10-18, owner)
+- **Where:** one mandatory gate per region (GATE-01). Default: the floor before the boss (4, 9, 14, 19, 24). If that floor has an NPC quest (Sad Ghost, Wandmaker, Blacksmith, Imp), the gate moves to another floor of the same region that has no quest, chosen from the seed (identical in both worlds). Never on floor 1 or on a boss floor.
+- **Why:** a floor carries at most one task, so the players never juggle a quest and a co-op gate on the same floor.
+- **Same rule for The Cell:** no Binding Trap on a gate floor.
+- **Open:** whether The Cell should also avoid quest floors (it's optional and hidden, so it's allowed for now).
