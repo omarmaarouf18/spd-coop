@@ -332,6 +332,42 @@ func TestPauseGraceAbortsMission(t *testing.T) {
 	}
 }
 
+// An abort revives a Downed prisoner in place: no penalty, no real death.
+func TestAbortRevivesDownedPrisoner(t *testing.T) {
+	fc := newFakeClock()
+	ts := newGameServer(t, "", fc, Rules{})
+	a, b, st := startCell(t, ts, 7)
+	a.send(fl(7), &protocol.Downed{})
+	a.next(protocol.TAllyDowned)
+	b.next(protocol.TAllyDowned)
+	_ = a.ws.CloseNow()
+	b.expect(protocol.TMissionUpdate)
+	fc.Advance(90 * time.Second)
+	ms := b.collect()
+	if !slices.Equal(types(ms), []string{protocol.TRevive, protocol.TMissionEnd}) {
+		t.Fatalf("after the grace: %v, want REVIVE then MISSION_END", types(ms))
+	}
+	if rv := ms[0].Payload.(*protocol.Revive); rv.Target != a.id || rv.Mode != "inPlace" || rv.HPPct != 25 {
+		t.Fatalf("REVIVE = %+v", rv)
+	}
+	if e := ms[1].Payload.(*protocol.MissionEnd); e.MissionID != st.MissionID || e.Result != "aborted" || e.Penalty != nil {
+		t.Fatalf("MISSION_END = %+v", e)
+	}
+	// The prisoner gets both on resume (replay), and no window is left.
+	a2, w := a.resume(ts)
+	if w.Replayed < 2 {
+		t.Fatalf("WELCOME = %+v", w)
+	}
+	got := types(a2.collect())
+	if !slices.Contains(got, protocol.TRevive) || !slices.Contains(got, protocol.TMissionEnd) {
+		t.Fatalf("A after resume: %v", got)
+	}
+	fc.Advance(time.Minute)
+	for _, c := range []*client{a2, b} {
+		c.quiet(protocol.TAllyStatus) // no DOWNED_EXPIRED, ever
+	}
+}
+
 func TestMissionOvertimeBackstop(t *testing.T) {
 	fc := newFakeClock()
 	ts := newGameServer(t, "", fc, Rules{})
@@ -449,16 +485,38 @@ func TestGiveExactlyOnceAndDropShare(t *testing.T) {
 			t.Fatalf("TRANSFER = %+v", tr)
 		}
 	}
+	// A retry of the same GIVE (new seq) is a duplicate: not applied twice.
 	a.send(fl(2), &protocol.Give{ItemNetID: id, Kind: "item", Item: &blob})
 	deny(t, a, protocol.DenyReasonAlreadyTransferred)
-	b.send(fl(7), &protocol.Give{ItemNetID: id, Kind: "item", Item: &blob})
-	deny(t, b, protocol.DenyReasonAlreadyTransferred)
+	// A byte-identical duplicated frame is refused by the seq rule.
+	frame, err := protocol.Encode(protocol.C2S, protocol.Envelope{Seq: a.seq, Depth: protocol.Int(2), Branch: protocol.Int(0)},
+		&protocol.Give{ItemNetID: id, Kind: "item", Item: &blob})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.raw(frame)
+	a.expectError(protocol.CodeBadMessage)
+	b.quiet() // B saw exactly one TRANSFER
+
+	// The current owner may give it on: A → B → A → B, across floors too.
+	for i, hop := range [][2]*client{{b, a}, {a, b}} {
+		from, to := hop[0], hop[1]
+		from.send(fl(7), &protocol.Give{ItemNetID: id, Kind: "item", Item: &blob})
+		for _, c := range []*client{a, b} {
+			tr := c.next(protocol.TTransfer).Payload.(*protocol.Transfer)
+			if tr.From != from.id || tr.To != to.id {
+				t.Fatalf("hop %d TRANSFER = %+v", i, tr)
+			}
+		}
+		from.send(fl(7), &protocol.Give{ItemNetID: id, Kind: "item", Item: &blob})
+		deny(t, from, protocol.DenyReasonAlreadyTransferred) // its own GIVE again
+	}
 
 	a.send(fl(2), &protocol.Claim{ItemNetID: "2:0:3"})
 	a.next(protocol.TClaimed)
 	b.next(protocol.TClaimed)
 	b.send(fl(2), &protocol.Give{ItemNetID: "2:0:3", Kind: "item", Item: &blob})
-	deny(t, b, protocol.DenyReasonNotOwner)
+	deny(t, b, protocol.DenyReasonNotOwner) // A holds it
 
 	// A drops its claimed item: relayed to B (same floor) and claimable once.
 	a.send(fl(2), &protocol.DropShare{Cell: 99, ItemNetID: "2:0:3", Item: blob})

@@ -35,7 +35,9 @@ import (
 // Shared items (§5.7, D-021): every itemNetId has exactly one owner per run,
 // kept in r.g.items and persisted row by row (store run_items).
 //   - claimed: picked up by Owner (floor loot, or a shared drop);
-//   - given:   handed over once by Giver to Owner (GIVE/TRANSFER);
+//   - given:   handed over by Giver to Owner (GIVE/TRANSFER); the current
+//     Owner may give it on (each accepted GIVE moves ownership), while the
+//     same GIVE from the last Giver again is a duplicate (already_transferred);
 //   - dropped: lying on Depth/Branch, claimable once by either player.
 
 // genFloor returns the floor of a level-gen itemNetId "<depth>:<branch>:<n>".
@@ -123,10 +125,13 @@ func (r *room) give(q request, p *protocol.Give) {
 	case g.Downed[me] != nil:
 		r.deny(q, protocol.DenyReasonDowned)
 		return
-	case it != nil && it.State == store.ItemGiven:
-		r.deny(q, protocol.DenyReasonAlreadyTransferred) // exactly once
+	case it != nil && it.Owner != me && it.State == store.ItemGiven && it.Giver == me:
+		// The sender's own last GIVE again (a retry or a duplicated frame):
+		// exactly once per request, never applied twice.
+		r.deny(q, protocol.DenyReasonAlreadyTransferred)
 		return
-	case it != nil && (it.State == store.ItemDropped || it.Owner != me):
+	case it != nil && it.Owner != me:
+		// Only the current owner gives (a dropped item has no owner).
 		r.deny(q, protocol.DenyReasonNotOwner)
 		return
 	case a == nil || r.isOut(a.sess.id):

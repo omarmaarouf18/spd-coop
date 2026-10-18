@@ -26,9 +26,11 @@ PROTOCOL.md §5.6–§5.10, all inside the room actor with an injectable clock (
   `MISSION_END{failed, penalty{regionStartDepth, goldPct:25}}` only (D-022).
 - **Pause (D-005):** a disconnect freezes the mission and every Downed window (`MISSION_UPDATE{paused}`)
   and interrupts a Super Sync; when both are back, the clocks continue and `ALLY_DOWNED` is re-sent with
-  the new deadline. `COOP_PAUSE_GRACE` paused → `MISSION_END{aborted}`.
-- **Items:** `CLAIM` (first wins) / `CLAIMS_REQ`, `GIVE`/`TRANSFER` exactly once, `DROP_SHARE`
-  (registered, relayed to the ally on the same floor). Ownership is persisted.
+  the new deadline. `COOP_PAUSE_GRACE` paused → `MISSION_END{aborted}` (a Downed prisoner is first
+  revived in place: `REVIVE{inPlace, 25}`).
+- **Items:** `CLAIM` (first wins) / `CLAIMS_REQ`, `GIVE`/`TRANSFER` from the current owner (each
+  accepted `GIVE` moves ownership; the same `GIVE` again is `already_transferred`, never applied twice),
+  `DROP_SHARE` (registered, relayed to the ally on the same floor). Ownership is persisted.
 - **Boss pool, twin windows, door mirroring, Super Sync relay** (10 `SYNC_VIEW` and 10 `SYNC_CMD`
   frames/s per sender, extra frames dropped silently).
 - **Reply order:** replies to one connection keep its request order (the reader waits for the actor,
@@ -128,6 +130,8 @@ window, shared boss pool. It waits out the Downed window twice (about 70 s with 
 cd server
 go run ./cmd/missionprobe                                 # ws://localhost:8080/ws
 ```
+
+Or the whole thing in Docker from the repo root (compose up, probe, compose down): `make mission-probe`.
 
 ## Tests
 

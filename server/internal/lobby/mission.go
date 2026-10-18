@@ -102,6 +102,15 @@ func (r *room) endMission(result string) {
 		return
 	}
 	end := &protocol.MissionEnd{MissionID: m.Start.MissionID, Result: result}
+	if result == "aborted" {
+		// An abort carries no penalty: a Downed prisoner is revived in place
+		// (owner review of SRV-02), never left to a real death.
+		if p := m.Start.Prisoner; r.g.Downed[p] != nil {
+			delete(r.g.Downed, p)
+			r.hub.log.Info("aborted mission revives the prisoner", "code", r.code, "player", p)
+			r.broadcast(&protocol.Revive{Target: p, Mode: "inPlace", HPPct: reviveHPPct})
+		}
+	}
 	switch result {
 	case "success":
 		end.Reward = &protocol.MissionReward{RewardSeed: newRoleSeed()}
