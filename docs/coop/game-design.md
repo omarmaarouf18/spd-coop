@@ -166,13 +166,16 @@ apply hpLost, leave Remote View
 These connect the two worlds directly. The ideas are the owner's. What changes is the implementation: everything that was turn-counted or client-trusted in the prototype is now decided by the **server**, and everything is co-op-only and floor-scoped.
 
 ### 6A.1 Shared floor loot
-- Items that **level gen** places on a floor (seeded, so they're identical in both worlds, each with a stable `itemNetId` from DET-01) form **one shared pool**.
-- Picking one up sends a claim to the server. **First claim wins**, and the item disappears from the ally's world (now if they're on that floor, or when they get there). If the ally claimed it first, the pickup fails with "your ally took it".
-- **Mob drops and other runtime-generated loot stay per-player** (each world has its own mobs).
+- Items that **level gen** places on a floor (seeded, so they're identical in both worlds, each with a stable `itemNetId` from DET-01) form **one shared pool**. That includes chest/tomb contents and what a Mimic or a Statue carries. The id travels inside the item's save data, so it survives pickup, drop, throw, save/load and the mob's death.
+- **Pickup is optimistic** (ITM-01): the item goes into your pack at once and a claim goes to the server (while offline, the claim waits and goes out when the connection is back). **First claim wins.** If the server says your ally got it first, the item leaves your pack again (for a stack, only the copies you took; for gold, the amount) and the log says "Your ally got it first: … vanishes from your pack." An item you already used before the answer can't be taken back.
+- The item disappears from the ally's world: with a small poof right away if they're on that floor, otherwise it is absent when they get there (the client asks the server for the floor's claims on every floor entry, and also remembers what the ally took, so it works offline too).
+- **Not shared:** mob drops and other runtime loot (each world has its own mobs), per-player items (DET-02), **keys** (they open doors of one world; LINK-01 links doors) and **shop stock** (each player has their own gold; both can buy the same item).
 
 ### 6A.2 Drop to your ally
-- An item you **drop or throw to the floor** while your ally is on the **same floor** also appears in the ally's world, on the same cell, as a shared item (either player can claim it, exactly once). This is how players trade on the spot. The Item Shrine (§7) is for trading across floors.
-- Items consumed on impact (shattered potions, missiles that hit and break) aren't mirrored. A missile that ends up lying on the floor is.
+- An item you **drop or throw to the floor** while your ally is **online on the same floor** also appears in the ally's world, on the same cell, as a shared item with a new id (`<yourPlayerId>:<n>`). Either player can claim it, exactly once: whoever picks it up first keeps it, and it vanishes from the other world. This is how players trade on the spot. The Item Shrine (§7) is for trading across floors.
+- Items consumed on impact (shattered potions, runestones that trigger, missiles that hit and break or stick) aren't mirrored. A thrown item that ends up lying on the floor is. An item that falls into a chasm or merges into a stack already lying there isn't.
+- **Never sent:** bags (and their contents), keys, bombs, the Amulet, quest items (each world runs its own quests), per-player items (DET-02), and an item whose pickup claim the server hasn't confirmed yet. The item is sent as SPD's own save data, at most 16 KiB; anything bigger stays in your world only.
+- If the ally isn't on the floor when the drop arrives (they just left), it doesn't appear for them; it stays a normal item in your world.
 
 ### 6A.3 Shared boss HP
 - On a boss floor, while **both** players are on it, each boss has **one HP pool held by the server**. Damage dealt in either world is reported, and the server broadcasts the pool, which both worlds apply. That keeps phases (e.g. thresholds) in sync, because they're driven by the shared HP.
