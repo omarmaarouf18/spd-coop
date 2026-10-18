@@ -191,6 +191,11 @@ These connect the two worlds directly. The ideas are the owner's. What changes i
 
 ### 6A.6 Door mirroring
 - Opening/closing a door (and breaking one) in your world does the same on that cell in the ally's world, but **only when the ally is on the same floor**, and only for door tiles (validated). Other terrain stays independent.
+- **What counts (LINK-01):** a regular door that opens because someone steps in, closes because they step out, or burns to embers (any fire, bomb or beam that burns terrain). Anyone counts: the hero, a mob, an ally NPC. A mob walking through a door in your world opens and closes it for your ally too.
+- **Not mirrored:** locked doors (and unlocking one), crystal doors, the Cell's sealed doors (§4, MEC-01), secret doors, and doors forced open some other way (Skeleton Key, fire spells that blow a door open; the fire that then burns it *is* mirrored). Keys stay per-world (§6A.1).
+- **Applied only to a regular door:** the change lands only if that cell is a regular door in the receiving world too. A door that is locked or sealed there, or already burnt there, doesn't change. Embers are final.
+- **A door never shuts on something:** if a char or an item is in the doorway in the receiving world, the close is skipped and the door stays open there (the same rule as SPD's own doors). It closes again the next time someone walks out of it.
+- Best-effort: a change sent while the ally is switching floors is lost, so door states can differ until the next change. No echo: an applied change never goes back out.
 
 ### 6A.7 Co-op balance (co-op runs only, deterministic, tune in BAL)
 - **Mobs: HT × 1.2.**
