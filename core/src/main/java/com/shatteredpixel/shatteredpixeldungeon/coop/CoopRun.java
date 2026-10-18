@@ -23,6 +23,7 @@
 
 package com.shatteredpixel.shatteredpixeldungeon.coop;
 
+import com.shatteredpixel.shatteredpixeldungeon.coop.mission.MissionState;
 import com.watabou.utils.Bundlable;
 import com.watabou.utils.Bundle;
 
@@ -51,6 +52,9 @@ public class CoopRun implements Bundlable {
 	// generated after a save/load continue exactly as without it. null until the first floor.
 	public Bundle levelGen;
 
+	//the mirror of the server's missions, Downed windows and Super Sync (MEC-00, coop/mission)
+	public MissionState missions = new MissionState();
+
 	private static final String RUN_ID = "coop_run_id";
 	private static final String SEED = "coop_seed";
 	private static final String ROLE_SEED = "coop_role_seed";
@@ -64,6 +68,7 @@ public class CoopRun implements Bundlable {
 	private static final String EPOCH = "coop_epoch";
 	private static final String ACK = "coop_ack";
 	private static final String LEVEL_GEN = "coop_levelgen";
+	private static final String MISSIONS = "coop_missions";
 
 	@Override
 	public void storeInBundle( Bundle bundle ) {
@@ -80,6 +85,7 @@ public class CoopRun implements Bundlable {
 		bundle.put( EPOCH, epoch );
 		bundle.put( ACK, ack );
 		if (levelGen != null) bundle.put( LEVEL_GEN, levelGen );
+		bundle.put( MISSIONS, missions );
 	}
 
 	@Override
@@ -97,6 +103,7 @@ public class CoopRun implements Bundlable {
 		epoch = bundle.getString( EPOCH );
 		ack = bundle.getLong( ACK );
 		levelGen = bundle.contains( LEVEL_GEN ) ? bundle.getBundle( LEVEL_GEN ) : null;
+		missions = bundle.contains( MISSIONS ) ? (MissionState) bundle.get( MISSIONS ) : new MissionState();
 	}
 
 	//"" in the bundle means "none" for the protocol

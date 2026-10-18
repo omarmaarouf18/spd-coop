@@ -45,6 +45,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mimic;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Snake;
 import com.shatteredpixel.shatteredpixeldungeon.coop.Coop;
+import com.shatteredpixel.shatteredpixeldungeon.coop.mission.CoopMissions;
 import com.shatteredpixel.shatteredpixeldungeon.effects.BannerSprites;
 import com.shatteredpixel.shatteredpixeldungeon.effects.BlobEmitter;
 import com.shatteredpixel.shatteredpixeldungeon.effects.CheckedCell;
@@ -513,6 +514,7 @@ public class GameScene extends PixelScene {
 			boss.setPos(boss.left(), boss.top() + buffBarRowAdjusts[2]);
 		}
 		add(boss);
+		CoopMissions.addHud( this, boss ); // COOP: the mission bar (timer, tasks) under the boss bar
 
 		resume = new ResumeIndicator();
 		resume.camera = uiCamera;

@@ -77,14 +77,19 @@ Mission start (timer + waves)
 ### 4.4 Anti-stall: real time + forced turns ✅
 Turn-based problem: a world's time only moves when its hero acts. If timers counted turns, a player could freeze everything by standing still. So:
 - **The mission clock is real time**, held by the server.
-- **Forced turns:** during a mission, if a player doesn't act within **5 s**, their game performs a *wait* turn automatically. This applies to **both** players, so both worlds keep moving.
-- **Pause:** the clock and forced turns pause if either player disconnects or backgrounds the app (iOS calls, etc.). After **90 s** paused, the mission resolves as a failure without the return penalty (❓).
+- **Forced turns:** during a mission (and a Downed window, §5.1), if a player doesn't act within **5 s**, their game performs a *wait* turn automatically, the same as pressing rest once. This applies to **both** players, so both worlds keep moving. Implemented in MEC-00 (`coop/mission`):
+  - the 5 s count starts when the hero starts waiting for input, or when the clock (re)starts if that's later: a resume never forces a turn at once;
+  - it applies **while any window is open, the pause menu included**, and cancels a pending cell selection (aiming a wand) first. A pause-menu exception would let the prisoner freeze their own world, and with it the waves; real absences are covered by the pause rule below;
+  - the HUD (mission bar under the boss bar, both players) shows the kind, the real-time countdown (`m:ss`), why it is paused, and a checkbox per task flag; a Downed window adds its own countdown line.
+- **Pause:** the clock and forced turns pause if either player disconnects or backgrounds the app (iOS calls, etc.). The client treats its own disconnection and the ally being offline (`ALLY_STATUS`/room snapshot) as paused at once, before the server's `MISSION_UPDATE{paused}` can arrive. The server sends no new Downed deadline after a pause, so the client moves it by the time it saw the link down. After **90 s** paused, the mission resolves as a failure without the return penalty (❓).
+- **Server time:** deadlines are server Unix ms; the client converts them with the offset from `WELCOME`/`PONG.serverTime` (the least-delayed of the last 6 samples). While running, `MISSION_UPDATE.remainingMs` is the truth (the server moves its deadline when it pauses).
 - **Waves:** one wave every **~30 s** of mission clock, each stronger than the last. They draw from the region's mob pool, scaled +1 tier every 2 waves. After **hard cap = 4 min + 15 s × region index**, waves become lethal (guaranteed resolution).
 
 ### 4.5 Return penalty ✅
 - **Both** players are sent to the **region start** floor (1/6/11/16/21), at its entrance.
-- It's implemented with the vanilla `InterlevelScene.Mode.RETURN` (`returnDepth/returnBranch/returnPos`). **Never** set `Dungeon.depth` by hand.
-- **Exploit guard:** region starts 6/11/16/21 have shops, so failing must not be a free teleport. The penalty also includes: −25% current gold for both, and the Cell's reward is lost. ❓ tune.
+- It's implemented with the vanilla `InterlevelScene.Mode.RETURN` (`returnDepth/returnBranch/returnPos`, `returnPos = -1` = the floor's entrance). **Never** set `Dungeon.depth` by hand.
+- **Exploit guard:** region starts 6/11/16/21 have shops, so failing must not be a free teleport. The penalty also includes: −25% current gold for both, and the Cell's reward is lost. ❓ tune. The server sends the floor and the percentage (`MISSION_END.penalty{regionStartDepth, goldPct}`); the gold lost rounds down.
+- **When (MEC-00):** each client applies it once (replays are ignored) as soon as its hero waits for input: gold first, then the travel. During an active boss fight (sealed boss floor) the travel and the gold loss wait until the fight is over. A hero who is already dead gets neither.
 - Floors already explored stay explored. Stairs are marked on the map to cut down the walk back.
 
 ### 4.6 Reward
