@@ -196,6 +196,16 @@ These connect the two worlds directly. The ideas are the owner's. What changes i
 - **Mobs: HT × 1.2.**
 - **More food:** 30% of random item rolls become food, and the food category probabilities are 5.2 / 1.3 (pasty) instead of 4 / 1. This compensates for the shared loot pool. Applied inside co-op level gen (DET-01 keeps it identical in both worlds).
 
+### 6A.8 Your own loot (per-player overlay, DET-02)
+Co-op floors are generated with a neutral hero, so both worlds get the same floor (D-019). What vanilla derives from *your* hero is added afterwards, **in your world only**, the first time you enter a floor. These items are yours alone: never claimed, never sent to the ally, and they don't count against the shared pool. Each player's extras come from their own seed (run seed + player + floor), and a reload never adds them twice.
+- **Dried Rose petals** (identified, uncursed rose, Sad Ghost quest done): vanilla's rule, about 1 petal every 2 floors, at most 11.
+- **Cached Rations** (Rogue talent): a supply ration chest in a special room on floors 2/4/7, as in vanilla.
+- **Timekeeper's Hourglass sand bags** (identified, uncursed): vanilla's share of the remaining bags, as extra stock in the shops on 6/11/16 and in the Imp's shop.
+- **Shop bag:** the bag your backpack needs most (vanilla's rule; the velvet pouch is everyone's starting bag), among the bags your shops haven't offered yet. With no preference, the shop keeps the bag level gen gave it. Each player still sees each bag once.
+- **Vault Mirror:** the reward for **your** class.
+- **Trinkets:** Cracked Spyglass hidden extra loot; Mimic Tooth's Ebony Mimic (a local mob with local loot); Trap Mechanism reveals the same share of the floor's hidden traps as in vanilla (never a co-op trap). **Not restored in co-op:** effects that would change the shared floor itself: Mossy Clump / Trap Mechanism level feelings, Mimic Tooth turning chests into mimics, Exotic Crystals / Rat Skull exotic items and mobs at level gen, Parchment Scrap on the Sad Ghost's reward. Their runtime effects (mob drops, grass, spawns, quest rewards made later) still apply.
+- **Duplicate artifacts:** co-op level gen doesn't know which artifacts you got at runtime (a drop, transmutation, the Rogue's cloak), so it can place one you already own. On entry, in your world, such an artifact turns into another one from your own artifact deck (a ring once it's empty). It keeps its place in the shared pool: whoever claims that slot first gets their world's version, and it vanishes from the other world.
+
 ## 7. Co-op room catalog (puzzles)
 
 All rooms are seeded, appear in both worlds, use role A/B asymmetry, and keep their state on the server.
