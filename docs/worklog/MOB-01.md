@@ -98,4 +98,5 @@ Literal outputs are in the chat report.
 - `CoopSession` could expose `WELCOME.complete` (coop/net, PRO lane), to skip the re-ask after a complete resume (harmless today).
 
 ## Open questions
-- **Quest mobs:** OK that the rot garden and every mob on the mine/vault branch floors stay per-world (no id)? The alternative is to share them, but then one player's kill would complete or break the other player's quest step.
+- ~~**Quest mobs:** should the rot garden and the mine/vault branch-floor mobs stay per-world (no id)?~~ Answered by the owner: yes, they stay per-world as implemented.
+- None open.
