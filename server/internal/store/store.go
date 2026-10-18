@@ -24,6 +24,9 @@
 // Schema v1 (SRV-00): the `meta` table holding the schema version.
 // Schema v2 (SRV-01): players (resume-token hashes), runs and run_players,
 // so a running run survives a server restart. Lobby rooms are memory-only.
+// Schema v3 (SRV-02): run_items (shared item ownership, PROTOCOL.md §5.7) and
+// run_state (the run's mission / Downed / Super Sync / boss engine state as
+// one JSON document), so they survive a restart too.
 package store
 
 import (
@@ -40,7 +43,7 @@ import (
 )
 
 // SchemaVersion is the schema this binary migrates the database to.
-const SchemaVersion = 2
+const SchemaVersion = 3
 
 // Store wraps the SQLite database.
 type Store struct {
@@ -122,6 +125,28 @@ func (s *Store) migrate(ctx context.Context) error {
 		} {
 			if _, err := tx.ExecContext(ctx, stmt); err != nil {
 				return fmt.Errorf("migrate to v2: %w", err)
+			}
+		}
+	}
+
+	if current < 3 {
+		for _, stmt := range []string{
+			`CREATE TABLE run_items (
+				run_id      TEXT NOT NULL REFERENCES runs(run_id),
+				item_net_id TEXT NOT NULL,
+				owner       TEXT NOT NULL,
+				state       TEXT NOT NULL,
+				giver       TEXT NOT NULL,
+				depth       INTEGER NOT NULL,
+				branch      INTEGER NOT NULL,
+				PRIMARY KEY (run_id, item_net_id))`,
+			`CREATE TABLE run_state (
+				run_id   TEXT PRIMARY KEY REFERENCES runs(run_id),
+				state    TEXT NOT NULL,
+				saved_at INTEGER NOT NULL)`,
+		} {
+			if _, err := tx.ExecContext(ctx, stmt); err != nil {
+				return fmt.Errorf("migrate to v3: %w", err)
 			}
 		}
 	}
@@ -262,6 +287,81 @@ func (s *Store) ActiveRunForPlayer(ctx context.Context, playerID string) (Run, e
 		r.Players = append(r.Players, p)
 	}
 	return r, rows.Err()
+}
+
+// Item is one row of run_items: the server's record of a shared itemNetId.
+type Item struct {
+	ItemNetID string
+	Owner     string // playerId, "" while a dropped item lies unclaimed
+	State     string // ItemClaimed, ItemGiven or ItemDropped
+	Giver     string // playerId that gave or dropped it, "" for a claim
+	Depth     int    // the floor it was last registered on
+	Branch    int
+}
+
+// Item states.
+const (
+	ItemClaimed = "claimed"
+	ItemGiven   = "given"
+	ItemDropped = "dropped"
+)
+
+// PutItem inserts or replaces one item record of a run.
+func (s *Store) PutItem(ctx context.Context, runID string, it Item) error {
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO run_items (run_id, item_net_id, owner, state, giver, depth, branch)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT(run_id, item_net_id) DO UPDATE SET
+		   owner = excluded.owner, state = excluded.state, giver = excluded.giver,
+		   depth = excluded.depth, branch = excluded.branch`,
+		runID, it.ItemNetID, it.Owner, it.State, it.Giver, it.Depth, it.Branch)
+	return err
+}
+
+// Items returns every item record of a run, sorted by itemNetId.
+func (s *Store) Items(ctx context.Context, runID string) ([]Item, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT item_net_id, owner, state, giver, depth, branch FROM run_items
+		  WHERE run_id = ? ORDER BY item_net_id`, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Item
+	for rows.Next() {
+		var it Item
+		if err := rows.Scan(&it.ItemNetID, &it.Owner, &it.State, &it.Giver, &it.Depth, &it.Branch); err != nil {
+			return nil, err
+		}
+		out = append(out, it)
+	}
+	return out, rows.Err()
+}
+
+// SaveRunState stores the run's engine state document (opaque to the store)
+// and when it was taken (server Unix ms).
+func (s *Store) SaveRunState(ctx context.Context, runID string, state []byte, savedAt int64) error {
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO run_state (run_id, state, saved_at) VALUES (?, ?, ?)
+		 ON CONFLICT(run_id) DO UPDATE SET state = excluded.state, saved_at = excluded.saved_at`,
+		runID, string(state), savedAt)
+	return err
+}
+
+// RunState returns the run's engine state document and its saved_at, or
+// ErrNotFound when none was saved.
+func (s *Store) RunState(ctx context.Context, runID string) ([]byte, int64, error) {
+	var state string
+	var savedAt int64
+	err := s.db.QueryRowContext(ctx, `SELECT state, saved_at FROM run_state WHERE run_id = ?`, runID).
+		Scan(&state, &savedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, 0, ErrNotFound
+	}
+	if err != nil {
+		return nil, 0, err
+	}
+	return []byte(state), savedAt, nil
 }
 
 // Close closes the database.
