@@ -1,0 +1,14 @@
+{
+  "name": "c2s-mob-kills-req-ok",
+  "direction": "c2s",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "MOB_KILLS_REQ",
+    "seq": 32,
+    "p": {
+      "depth": 3,
+      "branch": 0
+    }
+  }
+}

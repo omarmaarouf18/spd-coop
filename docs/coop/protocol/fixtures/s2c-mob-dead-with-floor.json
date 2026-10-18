@@ -1,0 +1,19 @@
+{
+  "name": "s2c-mob-dead-with-floor",
+  "direction": "s2c",
+  "valid": false,
+  "reason": "forbidden_field",
+  "field": "depth",
+  "note": "server-authored: the floor is in the mobNetId",
+  "message": {
+    "v": 1,
+    "t": "MOB_DEAD",
+    "seq": 52,
+    "depth": 3,
+    "branch": 0,
+    "p": {
+      "mobNetId": "3:0:7",
+      "by": "000000000000000a"
+    }
+  }
+}

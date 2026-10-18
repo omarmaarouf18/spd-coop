@@ -1,0 +1,15 @@
+{
+  "name": "c2s-terrain-req-missing-branch",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "missing_field",
+  "field": "p.branch",
+  "message": {
+    "v": 1,
+    "t": "TERRAIN_REQ",
+    "seq": 33,
+    "p": {
+      "depth": 2
+    }
+  }
+}

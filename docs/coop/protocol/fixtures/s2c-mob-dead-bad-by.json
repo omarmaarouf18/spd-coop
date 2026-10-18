@@ -1,0 +1,16 @@
+{
+  "name": "s2c-mob-dead-bad-by",
+  "direction": "s2c",
+  "valid": false,
+  "reason": "bad_format",
+  "field": "p.by",
+  "message": {
+    "v": 1,
+    "t": "MOB_DEAD",
+    "seq": 52,
+    "p": {
+      "mobNetId": "3:0:7",
+      "by": "A0000000000000a"
+    }
+  }
+}

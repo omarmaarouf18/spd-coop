@@ -1,0 +1,18 @@
+{
+  "name": "s2c-mob-dead-with-from",
+  "direction": "s2c",
+  "valid": false,
+  "reason": "forbidden_field",
+  "field": "from",
+  "note": "not relayed: by names the killer",
+  "message": {
+    "v": 1,
+    "t": "MOB_DEAD",
+    "seq": 52,
+    "from": "000000000000000a",
+    "p": {
+      "mobNetId": "3:0:7",
+      "by": "000000000000000a"
+    }
+  }
+}

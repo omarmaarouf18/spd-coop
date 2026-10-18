@@ -1,0 +1,19 @@
+{
+  "name": "c2s-terrain-persist-string",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "wrong_type",
+  "field": "p.persist",
+  "message": {
+    "v": 1,
+    "t": "TERRAIN",
+    "seq": 72,
+    "depth": 2,
+    "branch": 0,
+    "p": {
+      "cell": 431,
+      "tile": 19,
+      "persist": "true"
+    }
+  }
+}

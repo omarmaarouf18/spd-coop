@@ -397,21 +397,92 @@ type TwinDone struct {
 	GroupID int64 `json:"groupId"`
 }
 
-// Terrain is relayed (from set); only door tiles pass the server.
+// Terrain is relayed (from set); only whitelisted tiles pass the server
+// (§5.10, §5.11.2). Persist marks a permanent change (absent = false).
 type Terrain struct {
+	Cell    int   `json:"cell"`
+	Tile    int   `json:"tile"`
+	Persist *bool `json:"persist,omitempty"`
+}
+
+// Persistent reports whether the change is marked persist:true.
+func (t *Terrain) Persistent() bool { return t.Persist != nil && *t.Persist }
+
+// Terrain whitelist (§5.10, §5.11.2): SPD v4.0.2 Terrain values.
+const (
+	TileEmpty        = 1  // Terrain.EMPTY: an opened crystal door
+	TileDoor         = 5  // Terrain.DOOR
+	TileOpenDoor     = 6  // Terrain.OPEN_DOOR
+	TileEmbers       = 9  // Terrain.EMBERS: the burned-through (broken) door
+	TileLockedDoor   = 10 // Terrain.LOCKED_DOOR (a "from" tile only)
+	TileSecretTrap   = 17 // Terrain.SECRET_TRAP (a "from" tile only)
+	TileTrap         = 18 // Terrain.TRAP: a revealed trap
+	TileInactiveTrap = 19 // Terrain.INACTIVE_TRAP: a consumed trap
+	TileLockedExit   = 21 // Terrain.LOCKED_EXIT (a "from" tile only)
+	TileUnlockedExit = 22 // Terrain.UNLOCKED_EXIT
+	TileCrystalDoor  = 31 // Terrain.CRYSTAL_DOOR (a "from" tile only)
+	TileHeroLkdDr    = 38 // Terrain.HERO_LKD_DR: a door locked with the Skeleton Key
+)
+
+// IsDoorTile reports whether tile is a v1.1 door-mirroring tile (§6A.6).
+func IsDoorTile(tile int) bool {
+	return tile == TileDoor || tile == TileOpenDoor || tile == TileEmbers
+}
+
+// IsTerrainTile reports whether the server relays a TERRAIN with this tile
+// (the §5.11.2 whitelist).
+func IsTerrainTile(tile int) bool {
+	switch tile {
+	case TileEmpty, TileDoor, TileOpenDoor, TileEmbers, TileTrap, TileInactiveTrap, TileUnlockedExit, TileHeroLkdDr:
+		return true
+	}
+	return false
+}
+
+// IsPersistTile reports whether a persist:true TERRAIN with this tile is
+// stored in the floor's terrain record (§5.11.2): every whitelisted tile but
+// OPEN_DOOR.
+func IsPersistTile(tile int) bool {
+	return IsTerrainTile(tile) && tile != TileOpenDoor
+}
+
+// ---- connected worlds (§5.11) -----------------------------------------------
+
+type MobKilled struct {
+	MobNetID string `json:"mobNetId"`
+}
+
+type MobDead struct {
+	MobNetID string `json:"mobNetId"`
+	By       string `json:"by"`
+}
+
+type MobKillsReq struct {
+	Depth  int `json:"depth"`
+	Branch int `json:"branch"`
+}
+
+type MobKills struct {
+	Depth     int      `json:"depth"`
+	Branch    int      `json:"branch"`
+	MobNetIDs []string `json:"mobNetIds"`
+}
+
+type TerrainReq struct {
+	Depth  int `json:"depth"`
+	Branch int `json:"branch"`
+}
+
+// TerrainChange is one TERRAINS.changes entry.
+type TerrainChange struct {
 	Cell int `json:"cell"`
 	Tile int `json:"tile"`
 }
 
-// DoorTerrain whitelist (§5.10): SPD v4.0.2 Terrain values.
-const (
-	TileDoor     = 5 // Terrain.DOOR
-	TileOpenDoor = 6 // Terrain.OPEN_DOOR
-	TileEmbers   = 9 // Terrain.EMBERS: the burned-through (broken) door
-)
-
-func IsDoorTile(tile int) bool {
-	return tile == TileDoor || tile == TileOpenDoor || tile == TileEmbers
+type Terrains struct {
+	Depth   int             `json:"depth"`
+	Branch  int             `json:"branch"`
+	Changes []TerrainChange `json:"changes"`
 }
 
 func (*Hello) Type() string          { return THello }
@@ -460,6 +531,12 @@ func (*BossDead) Type() string       { return TBossDead }
 func (*TwinAct) Type() string        { return TTwinAct }
 func (*TwinDone) Type() string       { return TTwinDone }
 func (*Terrain) Type() string        { return TTerrain }
+func (*MobKilled) Type() string      { return TMobKilled }
+func (*MobDead) Type() string        { return TMobDead }
+func (*MobKillsReq) Type() string    { return TMobKillsReq }
+func (*MobKills) Type() string       { return TMobKills }
+func (*TerrainReq) Type() string     { return TTerrainReq }
+func (*Terrains) Type() string       { return TTerrains }
 
 // Reliable reports whether an s2c type is kept in the event log and
 // replayed on resume (§5, §7).
@@ -471,10 +548,20 @@ func Reliable(t string) bool {
 		TAllyDowned, TRevive, TDownedExpired,
 		TSyncStart, TSyncEnd,
 		TBossHP, TBossDead,
-		TTwinDone:
+		TTwinDone,
+		TMobDead:
 		return true
 	}
 	return false
+}
+
+// ReliableMessage is Reliable plus the one payload-dependent case: a relayed
+// TERRAIN with persist:true is reliable (§5.11.2, §7).
+func ReliableMessage(p Payload) bool {
+	if t, ok := p.(*Terrain); ok {
+		return t.Persistent()
+	}
+	return Reliable(p.Type())
 }
 
 // Presence reports whether t is a relayed presence type (§5.3).
@@ -551,6 +638,12 @@ var (
 	missionRewardSchema = objSchema{
 		fields: []field{
 			{"rewardSeed", true, intRange(0, MaxSafeInt)},
+		},
+	}
+	terrainChangeSchema = objSchema{
+		fields: []field{
+			{"cell", true, intRange(0, MaxCell)},
+			{"tile", true, intRange(0, 255)},
 		},
 	}
 	syncEntitySchema = objSchema{
@@ -877,8 +970,47 @@ var specs = map[string]typeSpec{
 		fields: []field{
 			{"cell", true, intRange(0, MaxCell)},
 			{"tile", true, intRange(0, 255)},
+			{"persist", false, boolean},
 		},
 	}, newPayload: func() Payload { return &Terrain{} }},
+
+	// ---- connected worlds (§5.11) -------------------------------------------------
+
+	TMobKilled: {c2s: true, floor: floorRequired, payload: objSchema{
+		fields: []field{{"mobNetId", true, mobNet}},
+	}, newPayload: func() Payload { return &MobKilled{} }},
+	TMobDead: {s2c: true, payload: objSchema{
+		fields: []field{
+			{"mobNetId", true, mobNet},
+			{"by", true, hexID},
+		},
+	}, newPayload: func() Payload { return &MobDead{} }},
+	TMobKillsReq: {c2s: true, payload: objSchema{
+		fields: []field{
+			{"depth", true, intRange(1, 30)},
+			{"branch", true, intRange(0, 9)},
+		},
+	}, newPayload: func() Payload { return &MobKillsReq{} }},
+	TMobKills: {s2c: true, payload: objSchema{
+		fields: []field{
+			{"depth", true, intRange(1, 30)},
+			{"branch", true, intRange(0, 9)},
+			{"mobNetIds", true, array(0, MaxFloorList, mobNet)},
+		},
+	}, newPayload: func() Payload { return &MobKills{} }},
+	TTerrainReq: {c2s: true, payload: objSchema{
+		fields: []field{
+			{"depth", true, intRange(1, 30)},
+			{"branch", true, intRange(0, 9)},
+		},
+	}, newPayload: func() Payload { return &TerrainReq{} }},
+	TTerrains: {s2c: true, payload: objSchema{
+		fields: []field{
+			{"depth", true, intRange(1, 30)},
+			{"branch", true, intRange(0, 9)},
+			{"changes", true, array(0, MaxFloorList, object(terrainChangeSchema))},
+		},
+	}, newPayload: func() Payload { return &Terrains{} }},
 }
 
 // Types returns every v1 type valid in dir.

@@ -49,6 +49,9 @@ const MaxOpaque = 16384
 // MaxCell is the cell-index upper bound (int64 form of the §3 cell rule).
 const MaxCell int64 = 65535
 
+// MaxFloorList caps MOB_KILLS.mobNetIds and TERRAINS.changes (§5.11).
+const MaxFloorList = 512
+
 // Direction of a message.
 type Direction int
 
@@ -117,6 +120,13 @@ const (
 	TTwinAct    = "TWIN_ACT"
 	TTwinDone   = "TWIN_DONE"
 	TTerrain    = "TERRAIN"
+	// Connected worlds: shared mobs, terrain record (§5.11).
+	TMobKilled   = "MOB_KILLED"
+	TMobDead     = "MOB_DEAD"
+	TMobKillsReq = "MOB_KILLS_REQ"
+	TMobKills    = "MOB_KILLS"
+	TTerrainReq  = "TERRAIN_REQ"
+	TTerrains    = "TERRAINS"
 )
 
 // Reserved lists the type names reserved for later versions (§5.4). They

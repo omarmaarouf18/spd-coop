@@ -335,6 +335,76 @@ class CoopSessionTest {
 	}
 
 	@Test
+	void connectedWorldsAnswersReachOnServerEvent() throws Exception {
+		welcomed();
+		session.onMessage( "{\"v\":1,\"t\":\"MOB_DEAD\",\"seq\":2,\"p\":{\"mobNetId\":\"3:0:7\",\"by\":\"" + ALLY + "\"}}" );
+		session.onMessage( "{\"v\":1,\"t\":\"MOB_KILLS\",\"seq\":3,\"p\":{\"depth\":3,\"branch\":0,\"mobNetIds\":[\"3:0:7\"]}}" );
+		session.onMessage( "{\"v\":1,\"t\":\"TERRAINS\",\"seq\":4,\"p\":{\"depth\":3,\"branch\":0,\"changes\":[{\"cell\":208,\"tile\":19}]}}" );
+		session.onMessage( "{\"v\":1,\"t\":\"TERRAIN\",\"seq\":5,\"from\":\"" + ALLY + "\",\"depth\":3,\"branch\":0,"
+				+ "\"p\":{\"cell\":208,\"tile\":19,\"persist\":true}}" );
+		assertTrue( rec.events.contains( "event:MOB_DEAD" ) );
+		assertTrue( rec.events.contains( "event:MOB_KILLS" ) );
+		assertTrue( rec.events.contains( "event:TERRAINS" ) );
+		assertTrue( rec.events.contains( "event:TERRAIN" ) );
+		assertEquals( 5, session.ack() );
+	}
+
+	@Test
+	void connectedWorldsRequestsAreValidC2SFrames() throws Exception {
+		welcomed();
+		assertTrue( session.mobKilled( 3, 0, "3:0:7" ) );
+		assertEquals( Protocol.MOB_KILLED, link.last().t );
+		assertEquals( Integer.valueOf( 3 ), link.last().depth );
+		assertEquals( "3:0:7", link.last().p.get( "mobNetId" ) );
+
+		assertTrue( session.mobKillsReq( 3, 1 ) );
+		assertEquals( Protocol.MOB_KILLS_REQ, link.last().t );
+		assertNull( link.last().depth, "MOB_KILLS_REQ carries the floor in its payload, not the envelope" );
+		assertEquals( "1", link.last().p.get( "branch" ).toString() );
+
+		assertTrue( session.terrainReq( 2, 0 ) );
+		assertEquals( Protocol.TERRAIN_REQ, link.last().t );
+		assertNull( link.last().depth, "TERRAIN_REQ carries the floor in its payload, not the envelope" );
+
+		assertTrue( session.terrain( 2, 0, 431, Protocol.TILE_INACTIVE_TRAP, true ) );
+		assertEquals( Boolean.TRUE, link.last().p.get( "persist" ) );
+		assertTrue( Protocol.reliable( link.last() ) );
+		assertTrue( session.terrain( 2, 0, 208, Protocol.TILE_OPEN_DOOR, false ) );
+		assertFalse( link.last().p.containsKey( "persist" ), "a relay-only change sends no persist" );
+		assertFalse( Protocol.reliable( link.last() ) );
+	}
+
+	@Test
+	void terrainWhitelistAndTransitions() {
+		int[] relayed = { 1, 5, 6, 9, 18, 19, 22, 38 };
+		int[] persisted = { 1, 5, 9, 18, 19, 22, 38 };
+		for (int tile = 0; tile <= 255; tile++) {
+			boolean r = false, p = false;
+			for (int x : relayed) r |= x == tile;
+			for (int x : persisted) p |= x == tile;
+			assertEquals( r, Protocol.isTerrainTile( tile ), "isTerrainTile " + tile );
+			assertEquals( p, Protocol.isPersistTile( tile ), "isPersistTile " + tile );
+		}
+		//the §5.11.2 table, row by row
+		assertTrue( Protocol.terrainTransition( Protocol.TILE_LOCKED_DOOR, Protocol.TILE_DOOR ) );
+		assertTrue( Protocol.terrainTransition( Protocol.TILE_HERO_LKD_DR, Protocol.TILE_DOOR ) );
+		assertTrue( Protocol.terrainTransition( Protocol.TILE_OPEN_DOOR, Protocol.TILE_DOOR ) );
+		assertTrue( Protocol.terrainTransition( Protocol.TILE_LOCKED_DOOR, Protocol.TILE_OPEN_DOOR ) );
+		assertTrue( Protocol.terrainTransition( Protocol.TILE_CRYSTAL_DOOR, Protocol.TILE_EMPTY ) );
+		assertTrue( Protocol.terrainTransition( Protocol.TILE_LOCKED_EXIT, Protocol.TILE_UNLOCKED_EXIT ) );
+		assertTrue( Protocol.terrainTransition( Protocol.TILE_DOOR, Protocol.TILE_HERO_LKD_DR ) );
+		assertTrue( Protocol.terrainTransition( Protocol.TILE_SECRET_TRAP, Protocol.TILE_INACTIVE_TRAP ) );
+		assertTrue( Protocol.terrainTransition( Protocol.TILE_TRAP, Protocol.TILE_INACTIVE_TRAP ) );
+		assertTrue( Protocol.terrainTransition( Protocol.TILE_SECRET_TRAP, Protocol.TILE_TRAP ) );
+		//never backwards, never onto arbitrary terrain
+		assertFalse( Protocol.terrainTransition( Protocol.TILE_DOOR, Protocol.TILE_LOCKED_DOOR ) );
+		assertFalse( Protocol.terrainTransition( Protocol.TILE_INACTIVE_TRAP, Protocol.TILE_TRAP ) );
+		assertFalse( Protocol.terrainTransition( 4, Protocol.TILE_EMPTY ), "a wall never becomes floor" );
+		assertFalse( Protocol.terrainTransition( Protocol.TILE_EMBERS, Protocol.TILE_DOOR ), "embers are final" );
+		assertFalse( Protocol.terrainTransition( Protocol.TILE_LOCKED_DOOR, Protocol.TILE_EMBERS ), "a locked door doesn't burn (not FLAMABLE)" );
+	}
+
+	@Test
 	void anUnsentFrameDoesNotSkipASeq() throws Exception {
 		welcomed();
 		link.accept = false;

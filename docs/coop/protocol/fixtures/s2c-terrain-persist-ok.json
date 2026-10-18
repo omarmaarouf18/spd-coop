@@ -1,0 +1,19 @@
+{
+  "name": "s2c-terrain-persist-ok",
+  "direction": "s2c",
+  "valid": true,
+  "note": "a door locked with the Skeleton Key, relayed",
+  "message": {
+    "v": 1,
+    "t": "TERRAIN",
+    "seq": 60,
+    "from": "000000000000000b",
+    "depth": 2,
+    "branch": 0,
+    "p": {
+      "cell": 431,
+      "tile": 38,
+      "persist": true
+    }
+  }
+}

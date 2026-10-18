@@ -1,0 +1,17 @@
+{
+  "name": "s2c-mob-killed-s2c-only-c2s",
+  "direction": "s2c",
+  "valid": false,
+  "reason": "unknown_type",
+  "field": "t",
+  "message": {
+    "v": 1,
+    "t": "MOB_KILLED",
+    "seq": 30,
+    "depth": 3,
+    "branch": 0,
+    "p": {
+      "mobNetId": "3:0:7"
+    }
+  }
+}

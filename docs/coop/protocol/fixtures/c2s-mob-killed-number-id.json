@@ -1,0 +1,17 @@
+{
+  "name": "c2s-mob-killed-number-id",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "wrong_type",
+  "field": "p.mobNetId",
+  "message": {
+    "v": 1,
+    "t": "MOB_KILLED",
+    "seq": 30,
+    "depth": 3,
+    "branch": 0,
+    "p": {
+      "mobNetId": 7
+    }
+  }
+}

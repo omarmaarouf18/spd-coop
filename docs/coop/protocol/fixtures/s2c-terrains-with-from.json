@@ -1,0 +1,19 @@
+{
+  "name": "s2c-terrains-with-from",
+  "direction": "s2c",
+  "valid": false,
+  "reason": "forbidden_field",
+  "field": "from",
+  "note": "server-authored, not relayed",
+  "message": {
+    "v": 1,
+    "t": "TERRAINS",
+    "seq": 64,
+    "from": "000000000000000a",
+    "p": {
+      "depth": 2,
+      "branch": 0,
+      "changes": []
+    }
+  }
+}

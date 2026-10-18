@@ -1,0 +1,25 @@
+{
+  "name": "s2c-terrains-missing-cell",
+  "direction": "s2c",
+  "valid": false,
+  "reason": "missing_field",
+  "field": "p.changes.1.cell",
+  "message": {
+    "v": 1,
+    "t": "TERRAINS",
+    "seq": 64,
+    "p": {
+      "depth": 2,
+      "branch": 0,
+      "changes": [
+        {
+          "cell": 208,
+          "tile": 5
+        },
+        {
+          "tile": 19
+        }
+      ]
+    }
+  }
+}

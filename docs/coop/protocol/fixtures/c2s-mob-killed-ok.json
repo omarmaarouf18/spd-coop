@@ -1,0 +1,15 @@
+{
+  "name": "c2s-mob-killed-ok",
+  "direction": "c2s",
+  "valid": true,
+  "message": {
+    "v": 1,
+    "t": "MOB_KILLED",
+    "seq": 30,
+    "depth": 3,
+    "branch": 0,
+    "p": {
+      "mobNetId": "3:0:7"
+    }
+  }
+}

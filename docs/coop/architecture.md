@@ -116,7 +116,9 @@ The full payload spec is PROTOCOL.md §5.6–§5.10; this is the map. Every requ
 | `SYNC_REPORT{syncId, hpLost, reason}` (ally) | `SYNC_END{syncId, hpLost, reason}` | drinker applies hpLost |
 | `BOSS_ENGAGE{bossId, ht}` / `BOSS_HIT{bossId, dmg}` | `BOSS_HP{bossId, hp, ht}` / `BOSS_DEAD{bossId}` | one pool × `COOP_BOSS_HP_SCALE` while both are on the floor (D-021) |
 | `TWIN_ACT{objectId, kind, cell, active, groupId?}` | `TWIN_DONE{groupId}` | both presses inside `COOP_TWIN_WINDOW` (default 2 s) |
-| `TERRAIN{cell, tile}` | relayed to ally | door tiles only (5/6/9), same floor only (D-021) |
+| `TERRAIN{cell, tile, persist?}` | relayed to ally | whitelist (PROTOCOL §5.11.2): doors 5/6/9, crystal door opened 1, unlocked exit 22, hero-locked door 38, revealed trap 18, consumed trap 19; same floor only (D-021, D-023). `persist:true` = permanent: reliable, and stored per floor (last write per cell wins) |
+| `TERRAIN_REQ{depth,branch}` | `TERRAINS{depth, branch, changes[{cell,tile}] ≤512}` | the floor's stored permanent changes, asked on floor entry; the receiver applies only forward transitions (§5.11.2) (D-023 §6A.10–§6A.11) |
+| `MOB_KILLED{mobNetId}` / `MOB_KILLS_REQ{depth,branch}` | `MOB_DEAD{mobNetId, by}` (reliable, both) / `MOB_KILLS{depth, branch, mobNetIds[] ≤512}` | shared level-gen mobs, first kill wins, a second report is silently ignored; kill registry persisted per run (D-023 §6A.9) |
 
 Still reserved in v1 (PROTOCOL.md §5.4): `TASK_DONE`, `COOP_ROOM_ACT`, `COOP_ROOM_STATE` (co-op room puzzles, ROOM-01).
 
@@ -125,6 +127,8 @@ Items that can cross worlds (keys, shrine items, Recall) get a stable `itemNetId
 - seeded items: `depth:branch:genIndex` (assigned by co-op level gen, `CoopItemIds`, identical on both clients; DET-01);
 - runtime items: `playerId:counter`.
 The server keeps `itemNetId → owner` per run (persisted, SRV-02) and rejects double claims/transfers.
+
+Shared mobs (D-023, §6A.9) get a `mobNetId` = `depth:branch:mobIndex`, minted by co-op level gen for the mobs it places (MOB-01), with the same format rules as a seeded itemNetId and no runtime form (mobs spawned during play stay local). The server keeps `mobNetId → killer` per run (persisted, SRV-03).
 
 ## 4. Server (Go)
 

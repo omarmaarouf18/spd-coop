@@ -1,0 +1,19 @@
+{
+  "name": "s2c-mob-dead-unknown-field-ok",
+  "direction": "s2c",
+  "valid": true,
+  "ignoredFields": [
+    "p.xp"
+  ],
+  "note": "s2c ignores unknown fields (§5.5)",
+  "message": {
+    "v": 1,
+    "t": "MOB_DEAD",
+    "seq": 53,
+    "p": {
+      "mobNetId": "3:0:8",
+      "by": "000000000000000b",
+      "xp": 12
+    }
+  }
+}

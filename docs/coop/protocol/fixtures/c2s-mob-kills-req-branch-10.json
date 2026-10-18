@@ -1,0 +1,16 @@
+{
+  "name": "c2s-mob-kills-req-branch-10",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "out_of_range",
+  "field": "p.branch",
+  "message": {
+    "v": 1,
+    "t": "MOB_KILLS_REQ",
+    "seq": 32,
+    "p": {
+      "depth": 3,
+      "branch": 10
+    }
+  }
+}

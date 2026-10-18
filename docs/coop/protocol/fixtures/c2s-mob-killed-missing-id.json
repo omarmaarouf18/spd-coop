@@ -1,0 +1,15 @@
+{
+  "name": "c2s-mob-killed-missing-id",
+  "direction": "c2s",
+  "valid": false,
+  "reason": "missing_field",
+  "field": "p.mobNetId",
+  "message": {
+    "v": 1,
+    "t": "MOB_KILLED",
+    "seq": 30,
+    "depth": 3,
+    "branch": 0,
+    "p": {}
+  }
+}

@@ -99,3 +99,68 @@ func TestReliableAndPresence(t *testing.T) {
 		}
 	}
 }
+
+// The §5.11.2 whitelist, by SPD v4.0.2 Terrain value.
+func TestTerrainWhitelist(t *testing.T) {
+	relayed := map[int]bool{1: true, 5: true, 6: true, 9: true, 18: true, 19: true, 22: true, 38: true}
+	persisted := map[int]bool{1: true, 5: true, 9: true, 18: true, 19: true, 22: true, 38: true}
+	for tile := 0; tile <= 255; tile++ {
+		if IsTerrainTile(tile) != relayed[tile] {
+			t.Errorf("IsTerrainTile(%d) = %v", tile, IsTerrainTile(tile))
+		}
+		if IsPersistTile(tile) != persisted[tile] {
+			t.Errorf("IsPersistTile(%d) = %v", tile, IsPersistTile(tile))
+		}
+	}
+	// The v1.1 door set is unchanged.
+	for _, tile := range []int{5, 6, 9} {
+		if !IsDoorTile(tile) {
+			t.Errorf("IsDoorTile(%d) = false", tile)
+		}
+	}
+	if IsDoorTile(TileLockedDoor) || IsDoorTile(TileInactiveTrap) {
+		t.Error("IsDoorTile grew beyond the v1.1 door tiles")
+	}
+}
+
+func TestReliableMessage(t *testing.T) {
+	yes, no := true, false
+	cases := []struct {
+		p    Payload
+		want bool
+	}{
+		{&MobDead{MobNetID: "3:0:7", By: "a1b2c3d4e5f60718"}, true},
+		{&MobKills{Depth: 3, MobNetIDs: []string{}}, false},
+		{&Terrains{Depth: 3, Changes: []TerrainChange{}}, false},
+		{&Terrain{Cell: 1, Tile: TileInactiveTrap, Persist: &yes}, true},
+		{&Terrain{Cell: 1, Tile: TileDoor, Persist: &no}, false},
+		{&Terrain{Cell: 1, Tile: TileOpenDoor}, false},
+		{&Claimed{ItemNetID: "1:0:1", By: "a1b2c3d4e5f60718"}, true},
+	}
+	for _, c := range cases {
+		if got := ReliableMessage(c.p); got != c.want {
+			t.Errorf("ReliableMessage(%s %+v) = %v, want %v", c.p.Type(), c.p, got, c.want)
+		}
+	}
+}
+
+func TestEncodeConnectedWorlds(t *testing.T) {
+	yes := true
+	if _, err := Encode(S2C, Envelope{Seq: 3, From: "a1b2c3d4e5f60718", Depth: Int(2), Branch: Int(0)},
+		&Terrain{Cell: 431, Tile: TileInactiveTrap, Persist: &yes}); err != nil {
+		t.Errorf("persisted TERRAIN: %v", err)
+	}
+	if _, err := Encode(S2C, Envelope{Seq: 4}, &Terrains{Depth: 2, Changes: []TerrainChange{{Cell: 431, Tile: 19}}}); err != nil {
+		t.Errorf("TERRAINS: %v", err)
+	}
+	if _, err := Encode(S2C, Envelope{Seq: 5}, &MobKills{Depth: 2, MobNetIDs: []string{"2:0:0"}}); err != nil {
+		t.Errorf("MOB_KILLS: %v", err)
+	}
+	// A nil slice encodes as null, which is never valid (§1): senders use [].
+	if _, err := Encode(S2C, Envelope{Seq: 6}, &MobKills{Depth: 2}); err == nil {
+		t.Error("MOB_KILLS with a nil id list encoded")
+	}
+	if _, err := Encode(C2S, Envelope{Seq: 7, Depth: Int(2), Branch: Int(0)}, &MobKilled{MobNetID: "3:0:1a"}); err == nil {
+		t.Error("MOB_KILLED with a bad mobNetId encoded")
+	}
+}
