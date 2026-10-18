@@ -158,9 +158,9 @@ func TestPlayersAndRuns(t *testing.T) {
 	}
 }
 
-// A database left by SRV-01 (schema v2, with a running run) upgrades to v3
-// and keeps its rows.
-func TestMigrateV2ToV3KeepsRuns(t *testing.T) {
+// A database left by SRV-01 (schema v2, with a running run) upgrades to the
+// current schema and keeps its rows.
+func TestMigrateV2ToCurrentKeepsRuns(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "coop.db")
 	db, err := sql.Open("sqlite", "file:"+path)
@@ -189,8 +189,8 @@ func TestMigrateV2ToV3KeepsRuns(t *testing.T) {
 		t.Fatalf("Open v2 database: %v", err)
 	}
 	defer s.Close()
-	if v, _ := s.SchemaVersion(ctx); v != 3 {
-		t.Fatalf("SchemaVersion = %d, want 3", v)
+	if v, _ := s.SchemaVersion(ctx); v != SchemaVersion {
+		t.Fatalf("SchemaVersion = %d, want %d", v, SchemaVersion)
 	}
 	r, err := s.ActiveRunForPlayer(ctx, "aaaaaaaaaaaaaaaa")
 	if err != nil || r.Seed != 42 || len(r.Players) != 1 {
@@ -252,5 +252,101 @@ func TestItemsAndRunState(t *testing.T) {
 	st, at, err := s.RunState(ctx, run.RunID)
 	if err != nil || string(st) != `{"x":2}` || at != 20 {
 		t.Fatalf("RunState = %s, %d, %v", st, at, err)
+	}
+}
+
+// A database left by SRV-02 (schema v3, with a run and an item) upgrades to
+// v4 and keeps its rows; the new registries start empty.
+func TestMigrateV3ToV4KeepsItems(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "coop.db")
+	db, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, stmt := range []string{
+		`CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
+		`INSERT INTO meta (key, value) VALUES ('schema_version', '3')`,
+		`CREATE TABLE players (player_id TEXT PRIMARY KEY, token_hash BLOB NOT NULL UNIQUE, created_at INTEGER NOT NULL, last_seen INTEGER NOT NULL)`,
+		`CREATE TABLE runs (run_id TEXT PRIMARY KEY, code TEXT NOT NULL, seed INTEGER NOT NULL, role_seed INTEGER NOT NULL, created_at INTEGER NOT NULL, phase TEXT NOT NULL)`,
+		`CREATE TABLE run_players (run_id TEXT NOT NULL REFERENCES runs(run_id), player_id TEXT NOT NULL REFERENCES players(player_id), slot INTEGER NOT NULL, hero_class TEXT NOT NULL, platform TEXT NOT NULL, PRIMARY KEY (run_id, slot))`,
+		`CREATE INDEX run_players_by_player ON run_players(player_id)`,
+		`CREATE TABLE run_items (run_id TEXT NOT NULL REFERENCES runs(run_id), item_net_id TEXT NOT NULL, owner TEXT NOT NULL, state TEXT NOT NULL, giver TEXT NOT NULL, depth INTEGER NOT NULL, branch INTEGER NOT NULL, PRIMARY KEY (run_id, item_net_id))`,
+		`CREATE TABLE run_state (run_id TEXT PRIMARY KEY REFERENCES runs(run_id), state TEXT NOT NULL, saved_at INTEGER NOT NULL)`,
+		`INSERT INTO players VALUES ('aaaaaaaaaaaaaaaa', x'01', 1, 1)`,
+		`INSERT INTO runs VALUES ('1111111111111111', 'K7MZQ4', 42, 7, 2, 'running')`,
+		`INSERT INTO run_players VALUES ('1111111111111111', 'aaaaaaaaaaaaaaaa', 0, 'MAGE', 'ios')`,
+		`INSERT INTO run_items VALUES ('1111111111111111', '3:0:5', 'aaaaaaaaaaaaaaaa', 'claimed', '', 3, 0)`,
+	} {
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			t.Fatal(err)
+		}
+	}
+	db.Close()
+
+	s, err := Open(ctx, path)
+	if err != nil {
+		t.Fatalf("Open v3 database: %v", err)
+	}
+	defer s.Close()
+	if v, _ := s.SchemaVersion(ctx); v != 4 {
+		t.Fatalf("SchemaVersion = %d, want 4", v)
+	}
+	if items, err := s.Items(ctx, "1111111111111111"); err != nil || len(items) != 1 || items[0].ItemNetID != "3:0:5" {
+		t.Fatalf("Items = %+v, %v", items, err)
+	}
+	if k, err := s.Kills(ctx, "1111111111111111"); err != nil || len(k) != 0 {
+		t.Fatalf("Kills = %+v, %v", k, err)
+	}
+	if tc, err := s.Terrain(ctx, "1111111111111111"); err != nil || len(tc) != 0 {
+		t.Fatalf("Terrain = %+v, %v", tc, err)
+	}
+}
+
+func TestKillsAndTerrain(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "coop.db")
+	s, err := Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"aaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbb"} {
+		if err := s.CreatePlayer(ctx, id, []byte(id), 1); err != nil {
+			t.Fatal(err)
+		}
+	}
+	run := Run{RunID: "3333333333333333", Code: "K7MZQ4", Seed: 1, RoleSeed: 1, CreatedAt: 1, Phase: RunRunning,
+		Players: []RunPlayer{{"aaaaaaaaaaaaaaaa", 0, "WARRIOR", "desktop"}, {"bbbbbbbbbbbbbbbb", 1, "MAGE", "android"}}}
+	if err := s.CreateRun(ctx, run); err != nil {
+		t.Fatal(err)
+	}
+	k1 := Kill{MobNetID: "3:0:7", Killer: "aaaaaaaaaaaaaaaa", Depth: 3}
+	k2 := Kill{MobNetID: "2:0:1", Killer: "bbbbbbbbbbbbbbbb", Depth: 2}
+	for _, k := range []Kill{k1, k2, {MobNetID: "3:0:7", Killer: "bbbbbbbbbbbbbbbb", Depth: 3}} {
+		if err := s.PutKill(ctx, run.RunID, k); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t1 := TerrainChange{Depth: 2, Cell: 431, Tile: 38}
+	t2 := TerrainChange{Depth: 2, Cell: 208, Tile: 5}
+	for _, tc := range []TerrainChange{t1, t2, {Depth: 2, Cell: 431, Tile: 5}} {
+		if err := s.PutTerrain(ctx, run.RunID, tc); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s.Close()
+
+	s, err = Open(ctx, path) // survives a reopen (a server restart)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	kills, err := s.Kills(ctx, run.RunID)
+	if want := []Kill{k2, k1}; err != nil || !reflect.DeepEqual(kills, want) {
+		t.Fatalf("Kills = %+v, %v; want %+v (the first kill wins)", kills, err, want)
+	}
+	terrain, err := s.Terrain(ctx, run.RunID)
+	if want := []TerrainChange{t2, {Depth: 2, Cell: 431, Tile: 5}}; err != nil || !reflect.DeepEqual(terrain, want) {
+		t.Fatalf("Terrain = %+v, %v; want %+v (the last write wins)", terrain, err, want)
 	}
 }
