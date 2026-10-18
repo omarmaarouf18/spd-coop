@@ -69,11 +69,14 @@ import java.util.Map;
 // stores them for the floor and relays them when the ally is there):
 //- Sent: a key (any key, the Skeleton Key too) unlocking a locked door (DOOR), a crystal door
 //  (EMPTY) or the locked exit (UNLOCKED_EXIT); a hero-locked door opened (DOOR); a door locked with
-//  the Skeleton Key (HERO_LKD_DR); a floor trap Trap.trigger consumed here (INACTIVE_TRAP); a hidden
-//  trap Level.discover revealed (TRAP). Never: the Binding Trap's trigger (MEC-01 spends it with
+//  the Skeleton Key (HERO_LKD_DR); a floor trap used up here, whatever did it (Trap.disarm:
+//  stepping on it, a chain reaction, a Reclaim Trap, a time freeze; INACTIVE_TRAP); a hidden trap
+//  Level.discover revealed (TRAP). Never: the Binding Trap's trigger (MEC-01 spends it with
 //  MISSION_START; revealing it is sent), a door the Cell sealed (CellPrison).
-//- Reliable: a change that can't go out now (offline) waits in TerrainOutbox, in order, and goes
-//  out on the next server event, floor entry or resume.
+//- Reliable: a change that can't go out now (offline) waits in TerrainOutbox (saved with the
+//  run), in order, and goes out on the next server event, floor entry or reconnect.
+//- TERRAIN_REQ on every floor entry and every transition to RUNNING (fresh start, reconnect,
+//  resume); one already in flight for that floor on this connection isn't sent again.
 //- Applied (TERRAIN with persist, TERRAINS on floor entry): only along Protocol.terrainTransition
 //  (forward-only), never on a sealed Cell door, never consuming the Binding Trap, never locking or
 //  closing a door on a char or a heap. A trap is updated as an object too (consumed: inactive and
@@ -162,8 +165,13 @@ public final class CoopLinks {
 	};
 
 	private static Link link = LIVE;
-	//permanent changes and floor requests that haven't gone out yet (GL thread only)
-	private static final TerrainOutbox outbox = new TerrainOutbox();
+	//what waits outside a run (never filled: every hook is co-op only); a run has its own, saved
+	private static final TerrainOutbox noRun = new TerrainOutbox();
+	//connections seen (each transition to RUNNING starts one): a request sent on an older one may
+	// have been lost with it
+	private static int connection = 0;
+	//the TERRAIN_REQ sent and not answered yet: depth, branch, connection; null if none
+	private static int[] inFlight;
 	//a floor entry waits this many frames at most for the scene before asking anyway
 	static final int READY_WAIT = 600;
 	//a received change is being applied: the hooks stay quiet
@@ -177,7 +185,40 @@ public final class CoopLinks {
 	public static void link( Link l ) {
 		link = l == null ? LIVE : l;
 		heroDoor = -1;
-		outbox.clear();
+		inFlight = null;
+	}
+
+	static TerrainOutbox outbox() {
+		CoopRun run = Coop.run();
+		return run != null ? run.terrainOutbox : noRun;
+	}
+
+	private static final TerrainOutbox.Sender SENDER = new TerrainOutbox.Sender() {
+		@Override
+		public boolean change( int depth, int branch, int cell, int tile ) {
+			return link.terrainPersist( depth, branch, cell, tile );
+		}
+
+		@Override
+		public boolean request( int depth, int branch ) {
+			return link.terrainReq( depth, branch );
+		}
+	};
+
+	//GL thread
+	private static void flush() {
+		int[] sent = outbox().flush( SENDER );
+		if (sent != null) inFlight = new int[]{ sent[0], sent[1], connection };
+	}
+
+	//GL thread: ask for a floor's record unless it's already on its way on this connection
+	private static void request( int depth, int branch ) {
+		if (inFlight != null && inFlight[0] == depth && inFlight[1] == branch && inFlight[2] == connection) {
+			flush();
+			return;
+		}
+		outbox().request( depth, branch );
+		flush();
 	}
 
 	static boolean regularDoor( int tile ) {
@@ -234,7 +275,7 @@ public final class CoopLinks {
 	public static void onServerEvent( Message m ) {
 		if (!Coop.isCoopRun()) return;
 		//any server event means we're connected: send what's waiting
-		outbox.flush( link );
+		flush();
 		if (Protocol.TERRAIN.equals( m.t )) {
 			if (m.bool( "persist" )) onPersisted( m );
 			else onDoorChange( m );
@@ -279,14 +320,19 @@ public final class CoopLinks {
 		}
 	}
 
-	//Trap.trigger, whatever stepped on it or set it off: a floor trap it consumed is consumed in
-	// the ally's world too (it fires only here). A trap that stays armed (gateway, flashing,
-	// gripping) isn't consumed anywhere.
-	public static void onTrapTriggered( Trap trap ) {
+	//Trap.disarm, before it changes anything: a trap is being used up in our world, whatever did it (stepped on, a chain reaction
+	// of Flock/Summoning/Distortion traps, a Reclaim Trap, a time freeze ending): it's used up in the
+	// ally's world too (it fires only here). Only a trap of the floor being played (never level gen,
+	// a level being loaded, or a trap object outside the floor), never the Binding Trap (MEC-01
+	// disarms it in both worlds on MISSION_START). Traps that stay armed when they fire (gateway,
+	// flashing, gripping) never call disarm then.
+	public static void onTrapDisarmed( Trap trap ) {
 		if (!Coop.isCoopRun() || applying || trap == null || trap instanceof BindingTrap) return;
 		Level level = Dungeon.level;
-		if (level == null || level.traps.get( trap.pos ) != trap) return;
-		if (level.map[trap.pos] == Terrain.INACTIVE_TRAP) persist( trap.pos, Terrain.INACTIVE_TRAP );
+		if (level == null || Dungeon.hero == null || !link.worldReady()) return;
+		if (!trap.active || trap.pos < 0 || trap.pos >= level.length() || level.traps.get( trap.pos ) != trap) return;
+		int tile = level.map[trap.pos];
+		if (tile == Terrain.TRAP || tile == Terrain.SECRET_TRAP) persist( trap.pos, Terrain.INACTIVE_TRAP );
 	}
 
 	//Level.discover, before the cell changes: a hidden trap there is about to be revealed
@@ -304,14 +350,18 @@ public final class CoopLinks {
 		link.post( () -> requestWhenReady( depth, branch, READY_WAIT ) );
 	}
 
-	//a resume that couldn't replay everything (WELCOME complete:false): what the ally changed on
-	// this floor meanwhile is only in the server's record
+	//CoopConnection, on every transition to RUNNING (fresh start, reconnect, resume): what the ally
+	// changed on this floor while we were away may only be in the server's record. A request sent on
+	// an earlier connection may have been lost with it, so it counts as not in flight any more.
 	public static void onResumed() {
-		if (!Coop.isCoopRun() || Dungeon.level == null) return;
-		final int depth = Dungeon.depth, branch = Dungeon.branch;
+		//now, not in the posted part: a request already queued for the GL thread goes out on this
+		// connection and counts as in flight
+		connection++;
+		if (!Coop.isCoopRun()) return;
 		link.post( () -> {
-			outbox.flush( link );
-			outbox.request( link, depth, branch );
+			if (!Coop.isCoopRun() || Dungeon.level == null || Dungeon.hero == null) return;
+			flush();
+			request( Dungeon.depth, Dungeon.branch );
 		} );
 	}
 
@@ -321,13 +371,15 @@ public final class CoopLinks {
 			link.post( () -> requestWhenReady( depth, branch, frames - 1 ) );
 			return;
 		}
-		outbox.flush( link );
-		outbox.request( link, depth, branch );
+		request( depth, branch );
 	}
 
 	private static void persist( final int cell, final int tile ) {
 		final int depth = Dungeon.depth, branch = Dungeon.branch;
-		link.post( () -> outbox.add( link, depth, branch, cell, tile ) );
+		link.post( () -> {
+			outbox().add( depth, branch, cell, tile );
+			flush();
+		} );
 	}
 
 	//TERRAIN{persist:true} relayed from the ally
@@ -348,6 +400,7 @@ public final class CoopLinks {
 				|| !link.worldReady()) return;
 		Object changes = m.p.get( "changes" );
 		if (!(changes instanceof List)) return;
+		if (inFlight != null && inFlight[0] == Dungeon.depth && inFlight[1] == Dungeon.branch) inFlight = null;
 		for (Object o : (List<Object>) changes) {
 			if (!(o instanceof Map)) continue;
 			Map<String, Object> c = (Map<String, Object>) o;

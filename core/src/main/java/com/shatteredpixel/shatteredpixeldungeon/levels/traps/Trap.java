@@ -101,7 +101,6 @@ public abstract class Trap implements Bundlable {
 			Dungeon.level.discover(pos);
 			Bestiary.setSeen(getClass());
 			Bestiary.countEncounter(getClass());
-			CoopLinks.onTrapTriggered( this ); // COOP: consumed (not fired) in the ally's world too (LINK-02)
 			activate();
 		}
 	}
@@ -109,6 +108,7 @@ public abstract class Trap implements Bundlable {
 	public abstract void activate();
 
 	public void disarm(){
+		CoopLinks.onTrapDisarmed( this ); // COOP: used up (not fired) in the ally's world too (LINK-02)
 		active = false;
 		Dungeon.level.disarmTrap(pos);
 	}

@@ -204,6 +204,7 @@ public final class CoopConnection {
 
 		@Override
 		public void onStateChanged( CoopSession.State state ) {
+			if (state == CoopSession.State.RUNNING) CoopLinks.onResumed(); // LINK-02: re-ask the floor's record
 			notifyUi();
 		}
 

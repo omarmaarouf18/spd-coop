@@ -34,6 +34,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroAction;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Rat;
 import com.shatteredpixel.shatteredpixeldungeon.coop.Coop;
+import com.shatteredpixel.shatteredpixeldungeon.coop.CoopRun;
 import com.shatteredpixel.shatteredpixeldungeon.coop.CoopTestRuns;
 import com.shatteredpixel.shatteredpixeldungeon.coop.mission.cell.BindingTrap;
 import com.shatteredpixel.shatteredpixeldungeon.coop.mission.cell.CellPrison;
@@ -41,23 +42,33 @@ import com.shatteredpixel.shatteredpixeldungeon.coop.net.Protocol;
 import com.shatteredpixel.shatteredpixeldungeon.coop.net.Protocol.Direction;
 import com.shatteredpixel.shatteredpixeldungeon.coop.net.Protocol.Message;
 import com.shatteredpixel.shatteredpixeldungeon.coop.test.HeadlessEnv;
+import com.shatteredpixel.shatteredpixeldungeon.items.artifacts.TimekeepersHourglass;
 import com.shatteredpixel.shatteredpixeldungeon.items.keys.IronKey;
+import com.shatteredpixel.shatteredpixeldungeon.items.spells.ReclaimTrap;
 import com.shatteredpixel.shatteredpixeldungeon.items.keys.WornKey;
 import com.shatteredpixel.shatteredpixeldungeon.journal.Notes;
 import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
 import com.shatteredpixel.shatteredpixeldungeon.levels.Terrain;
+import com.shatteredpixel.shatteredpixeldungeon.levels.traps.DistortionTrap;
+import com.shatteredpixel.shatteredpixeldungeon.levels.traps.FlockTrap;
+import com.shatteredpixel.shatteredpixeldungeon.levels.traps.GatewayTrap;
+import com.shatteredpixel.shatteredpixeldungeon.levels.traps.SummoningTrap;
 import com.shatteredpixel.shatteredpixeldungeon.levels.traps.Trap;
+import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
+import com.shatteredpixel.shatteredpixeldungeon.plants.Swiftthistle;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Languages;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.watabou.noosa.Game;
 import com.watabou.utils.Bundle;
 import com.watabou.utils.PathFinder;
+import com.watabou.utils.Random;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -220,6 +231,151 @@ class CoopLinksTerrainTest {
 		assertTrue( link.sent.isEmpty() );
 	}
 
+	//Trap.disarm is the one hook for 19, whatever used the trap up
+	@Test
+	void everyWayATrapIsUsedUpSends19ExactlyOnce() throws Exception {
+		Level level = floor1( true );
+
+		//a time freeze ending with the trap pressed: Timekeeper's Hourglass and Swiftthistle
+		int[] c = besideHero( level, 8 );
+		TestTrap frozen = trap( level, c[0], true, true );
+		TimekeepersHourglass.timeFreeze freeze = new TimekeepersHourglass().new timeFreeze();
+		freeze.setDelayedPress( c[0] );
+		freeze.disarmPresses();
+		TestTrap bubbled = trap( level, c[1], false, true );
+		Swiftthistle.TimeBubble bubble = new Swiftthistle.TimeBubble();
+		bubble.setDelayedPress( c[1] );
+		bubble.disarmPresses();
+		assertEquals( Arrays.asList( "P 1 0 " + c[0] + " 19", "P 1 0 " + c[1] + " 19" ), link.sent );
+		assertEquals( 0, frozen.fired + bubbled.fired );
+
+		//a Reclaim Trap takes it (even a trap that never disarms itself)
+		link.sent.clear();
+		GatewayTrap gateway = new GatewayTrap();
+		gateway.reveal();
+		Level.set( c[2], Terrain.TRAP, level );
+		level.setTrap( gateway, c[2] );
+		reclaim( c[2] );
+		assertEquals( Arrays.asList( "P 1 0 " + c[2] + " 19" ), link.sent );
+
+		//the same trap disarmed again (it's inactive now) sends nothing more
+		gateway.disarm();
+		assertEquals( 1, link.sent.size() );
+	}
+
+	//Summoning / Distortion: their own trigger (19) and the chained traps the spawned mobs land on
+	// (19), each once. Every cell around the trap has a chained trap. Headless, the visuals after a
+	// chain (ScrollOfTeleportation.appear needs a sprite) stop the activation.
+	@Test
+	void chainedTrapsSend19Once() throws Exception {
+		for (Class<? extends Trap> type : Arrays.asList( SummoningTrap.class, DistortionTrap.class )) {
+			//both traps roll their mobs on the gameplay RNG, and some rolls (a Wraith) need a sprite
+			// before the chain: fixed seeds, in order, until one reaches a chained trap
+			boolean reached = false;
+			for (long seed = 1; seed <= 50 && !reached; seed++) {
+				reached = chain( type, seed );
+			}
+			assertTrue( reached, type.getSimpleName() + ": no seed in 1..50 reached a chained trap" );
+		}
+	}
+
+	//true if a chained trap went off; then every trap that went off sent 19 exactly once
+	private boolean chain( Class<? extends Trap> type, long seed ) throws Exception {
+		Level level = floor1( true );
+		link.sent.clear();
+		int center = -1;
+		for (int i = 0; i < level.length() && center < 0; i++) {
+			if (i != Dungeon.hero.pos && level.distance( i, Dungeon.hero.pos ) > 2 && isOpen( level, i )) center = i;
+		}
+		assertTrue( center >= 0, type.getSimpleName() + ": no open test cell" );
+		Trap first = type.getDeclaredConstructor().newInstance();
+		first.reveal();
+		Level.set( center, Terrain.TRAP, level );
+		level.setTrap( first, center );
+		List<TestTrap> chained = new ArrayList<>();
+		for (int n : PathFinder.NEIGHBOURS8) chained.add( trap( level, center + n, true, true ) );
+		Random.pushGenerator( seed );
+		try {
+			first.trigger();
+		} catch (NullPointerException headlessVisuals) {
+			//a sprite or emitter without a GameScene (ScrollOfTeleportation.appear after the chain)
+		} finally {
+			Random.popGenerator();
+		}
+		List<String> expected = new ArrayList<>();
+		expected.add( "P 1 0 " + center + " 19" );
+		for (TestTrap t : chained) {
+			if (!t.active) {
+				expected.add( "P 1 0 " + t.pos + " 19" );
+				assertEquals( 1, t.fired, type.getSimpleName() + " seed " + seed );
+			}
+		}
+		assertEquals( expected, link.sent, type.getSimpleName() + " seed " + seed );
+		return expected.size() >= 2;
+	}
+
+	//Flock: FlockTrap.activate draws a wool burst (CellEmitter, needs a GameScene) before it
+	// reaches its chain, so headless it can't get there. Its chain is the same statement sequence as
+	// Summoning's (disarm if disarmedByActivation, reveal, activate), replayed here on a real level.
+	@Test
+	void flocksChainStatementsSend19Once() {
+		Level level = floor1( true );
+		int[] c = besideHero( level, 2 );
+		new FlockTrap().reveal();
+		TestTrap t = trap( level, c[0], false, true );
+		Trap found = level.traps.get( c[0] );
+		if (found != null && found.active) {
+			if (found.disarmedByActivation) found.disarm();
+			found.reveal();
+			found.activate();
+		}
+		TestTrap stays = trap( level, c[1], true, false );
+		found = level.traps.get( c[1] );
+		if (found != null && found.active) {
+			if (found.disarmedByActivation) found.disarm();
+			found.reveal();
+			found.activate();
+		}
+		assertEquals( Arrays.asList( "P 1 0 " + c[0] + " 19" ), link.sent );
+		assertEquals( 1, t.fired );
+		assertEquals( 1, stays.fired, "a permanent trap fires and sends nothing" );
+	}
+
+	@Test
+	void disarmSendsOnlyForThePlayedFloor() throws Exception {
+		Level level = floor1( true );
+		int cell = besideHero( level, 1 )[0];
+		//a trap object that isn't the floor's (a Reclaim Trap's thrown copy, another level's)
+		TestTrap loose = new TestTrap();
+		loose.set( cell );
+		Level.set( cell, Terrain.TRAP, level );
+		loose.disarm();
+		//the floor isn't on screen (level load, floor switch)
+		TestTrap t = trap( level, cell, true, true );
+		link.ready = false;
+		t.disarm();
+		link.ready = true;
+		//the Binding Trap disarmed by MEC-01 on MISSION_START
+		BindingTrap binding = new BindingTrap();
+		int b = besideHero( level, 2 )[1];
+		Level.set( b, Terrain.TRAP, level );
+		level.setTrap( binding, b );
+		binding.disarm();
+		assertTrue( link.sent.isEmpty() );
+
+		//an applied 19 from the ally doesn't come back (no echo through disarm)
+		TestTrap other = trap( level, besideHero( level, 3 )[2], true, true );
+		CoopLinks.onServerEvent( persisted( ALLY, 1, 0, other.pos, Terrain.INACTIVE_TRAP ) );
+		assertFalse( other.active );
+		assertTrue( link.sent.isEmpty() );
+
+		//co-op level gen doesn't send either (it never runs on the played floor)
+		Dungeon.depth = 2;
+		Dungeon.newLevel();
+		Dungeon.depth = 1;
+		assertTrue( link.sent.isEmpty() );
+	}
+
 	// ---- receiving ----
 
 	@Test
@@ -356,6 +512,81 @@ class CoopLinksTerrainTest {
 	}
 
 	@Test
+	void offlineChangesSurviveASaveAndLoad() throws Exception {
+		Level level = floor1( true );
+		int[] c = besideHero( level, 2 );
+		link.online = false;
+		Notes.add( new IronKey( 1 ) );
+		unlock( level, c[0], Terrain.LOCKED_DOOR, () -> {} );
+		trap( level, c[1], true, true ).trigger();
+		assertEquals( 2, pending() );
+
+		//the game is closed and loaded again, still offline
+		CoopRun run = Coop.run();
+		Bundle saved = new Bundle();
+		run.storeInBundle( saved );
+		run.restoreFromBundle( Bundle.read( new ByteArrayInputStream( saved.toString().getBytes( StandardCharsets.UTF_8 ) ) ) );
+		assertEquals( 2, pending(), "kept in the save" );
+		assertTrue( link.sent.isEmpty() );
+
+		//back online: sent in order, then gone (from the save too)
+		link.online = true;
+		CoopLinks.onResumed();
+		assertEquals( Arrays.asList( "P 1 0 " + c[0] + " 5", "P 1 0 " + c[1] + " 19", "REQ 1 0" ), link.sent );
+		assertEquals( 0, pending() );
+		Bundle after = new Bundle();
+		run.storeInBundle( after );
+		assertEquals( 0, after.getBundle( "coop_terrain_outbox" ).getIntArray( "changes" ).length );
+
+		//an old save has no outbox
+		Bundle old = new Bundle();
+		run.storeInBundle( old );
+		old.remove( "coop_terrain_outbox" );
+		run.restoreFromBundle( old );
+		assertEquals( 0, pending() );
+	}
+
+	@Test
+	void aRequestInFlightIsNotSentTwice() throws Exception {
+		Level level = floor1( true );
+		//entering the floor and the connection reaching RUNNING at the same time (both queued for the
+		// GL thread, in either order): one request
+		link.defer = true;
+		CoopLinks.onLevelEntered( level );
+		CoopLinks.onResumed();
+		link.runDeferred();
+		assertEquals( 1, Collections.frequency( link.sent, "REQ 1 0" ) );
+		CoopLinks.onServerEvent( terrains( 1, 0 ) );
+		link.sent.clear();
+		CoopLinks.onResumed();
+		CoopLinks.onLevelEntered( level );
+		link.runDeferred();
+		link.defer = false;
+		assertEquals( 1, Collections.frequency( link.sent, "REQ 1 0" ) );
+		//a save loaded offline: the entry's request waits, the connection sends it once
+		link.sent.clear();
+		link.online = false;
+		CoopLinks.onServerEvent( terrains( 1, 0 ) );
+		CoopLinks.onLevelEntered( level );
+		link.online = true;
+		CoopLinks.onResumed();
+		assertEquals( Arrays.asList( "REQ 1 0" ), link.sent );
+		link.sent.clear();
+
+		//in flight, the same floor entered again on this connection: not sent again
+		CoopLinks.onLevelEntered( level );
+		assertTrue( link.sent.isEmpty() );
+		//answered: the next entry asks again
+		CoopLinks.onServerEvent( terrains( 1, 0 ) );
+		CoopLinks.onLevelEntered( level );
+		assertEquals( Arrays.asList( "REQ 1 0" ), link.sent );
+		//not answered and the connection dropped: the reconnect asks again, once
+		CoopLinks.onResumed();
+		CoopLinks.onLevelEntered( level );
+		assertEquals( Arrays.asList( "REQ 1 0", "REQ 1 0" ), link.sent );
+	}
+
+	@Test
 	void appliedChangesSurviveASaveAndLoad() throws Exception {
 		Level level = floor1( true );
 		int[] c = besideHero( level, 3 );
@@ -408,13 +639,7 @@ class CoopLinksTerrainTest {
 	// ---- helpers ----
 
 	private static int pending() {
-		try {
-			java.lang.reflect.Field f = CoopLinks.class.getDeclaredField( "outbox" );
-			f.setAccessible( true );
-			return ((TerrainOutbox) f.get( null )).pending();
-		} catch (ReflectiveOperationException e) {
-			throw new AssertionError( e );
-		}
+		return CoopLinks.outbox().pending();
 	}
 
 	private Level floor1( boolean coop ) {
@@ -452,6 +677,25 @@ class CoopLinksTerrainTest {
 		int t = level.map[i];
 		return (t == Terrain.EMPTY || t == Terrain.EMPTY_SP || t == Terrain.EMPTY_DECO || t == Terrain.GRASS)
 				&& level.heaps.get( i ) == null && level.traps.get( i ) == null && Actor.findChar( i ) == null;
+	}
+
+	//ReclaimTrap.affectTarget at a trap cell; headless it stops after the disarm (no sprite, no user)
+	private static void reclaim( int cell ) throws Exception {
+		Method affect = ReclaimTrap.class.getDeclaredMethod( "affectTarget", Ballistica.class, com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero.class );
+		affect.setAccessible( true );
+		try {
+			affect.invoke( new ReclaimTrap(), new Ballistica( Dungeon.hero.pos, cell, Ballistica.PROJECTILE ), Dungeon.hero );
+		} catch (java.lang.reflect.InvocationTargetException e) {
+			if (!(e.getCause() instanceof NullPointerException)) throw e;
+		}
+	}
+
+	private static boolean isOpen( Level level, int cell ) {
+		if (!freeFloor( level, cell )) return false;
+		for (int n : PathFinder.NEIGHBOURS8) {
+			if (cell + n != Dungeon.hero.pos && !freeFloor( level, cell + n )) return false;
+		}
+		return true;
 	}
 
 	private static int[] besideHero( Level level, int n ) {
@@ -520,8 +764,13 @@ class CoopLinksTerrainTest {
 		//"P depth branch cell tile" per TERRAIN{persist}, "REQ depth branch" per TERRAIN_REQ
 		final List<String> sent = new ArrayList<>();
 		final List<String> redrawn = new ArrayList<>();
-		boolean allyOn = true, ready = true, online = true;
+		boolean allyOn = true, ready = true, online = true, defer = false;
 		int posts;
+		final List<Runnable> deferred = new ArrayList<>();
+
+		void runDeferred() {
+			while (!deferred.isEmpty()) deferred.remove( 0 ).run();
+		}
 
 		@Override
 		public String me() {
@@ -571,7 +820,8 @@ class CoopLinksTerrainTest {
 		@Override
 		public void post( Runnable r ) {
 			posts++;
-			r.run();
+			if (defer) deferred.add( r );
+			else r.run();
 		}
 
 		@Override

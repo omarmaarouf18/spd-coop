@@ -23,57 +23,80 @@
 
 package com.shatteredpixel.shatteredpixeldungeon.coop.links;
 
+import com.watabou.utils.Bundlable;
+import com.watabou.utils.Bundle;
+
 import java.util.ArrayDeque;
 
 //what LINK-02 must tell the server but couldn't yet (offline, mid-reconnect): permanent terrain
-// changes, in the order they happened, and the last floor whose record we still have to ask for.
-//GL thread only (CoopLinks posts every use). In memory: a change made offline is lost if the game
-// is closed before the connection comes back (see the LINK-02 worklog).
-final class TerrainOutbox {
+// changes, in the order they happened, and the floor whose record we still have to ask for.
+//The changes are saved with the run (CoopRun "coop_terrain_outbox"), so a change made offline
+// survives closing the game; a change leaves only once it was sent. The request isn't saved: the
+// next floor entry or reconnect asks again.
+//Used on the GL thread (CoopLinks posts every use); synchronized because saving can happen on
+// another thread.
+public class TerrainOutbox implements Bundlable {
 
-	private static final class Change {
-		final int depth, branch, cell, tile;
-
-		Change( int depth, int branch, int cell, int tile ) {
-			this.depth = depth;
-			this.branch = branch;
-			this.cell = cell;
-			this.tile = tile;
-		}
+	//true when the floor request went out (the caller marks it in flight)
+	interface Sender {
+		boolean change( int depth, int branch, int cell, int tile );
+		boolean request( int depth, int branch );
 	}
 
-	private final ArrayDeque<Change> changes = new ArrayDeque<>();
+	private final ArrayDeque<int[]> changes = new ArrayDeque<>();
 	//a TERRAIN_REQ still to send: {depth, branch}, or null
 	private int[] request;
 
-	void add( CoopLinks.Link link, int depth, int branch, int cell, int tile ) {
-		changes.add( new Change( depth, branch, cell, tile ) );
-		flush( link );
+	synchronized void add( int depth, int branch, int cell, int tile ) {
+		changes.add( new int[]{ depth, branch, cell, tile } );
 	}
 
 	//asks for a floor's record; replaces an older request (only the floor we're on matters)
-	void request( CoopLinks.Link link, int depth, int branch ) {
+	synchronized void request( int depth, int branch ) {
 		request = new int[]{ depth, branch };
-		flush( link );
 	}
 
-	//sends in order and stops at the first one that can't go out
-	void flush( CoopLinks.Link link ) {
+	//sends in order and stops at the first one that can't go out; the request goes after our own
+	// changes, so the record we get back already has them. Returns the floor requested, or null.
+	synchronized int[] flush( Sender sender ) {
 		while (!changes.isEmpty()) {
-			Change c = changes.peek();
-			if (!link.terrainPersist( c.depth, c.branch, c.cell, c.tile )) return;
+			int[] c = changes.peek();
+			if (!sender.change( c[0], c[1], c[2], c[3] )) return null;
 			changes.poll();
 		}
-		//after our own changes, so the record we get back already has them
-		if (request != null && link.terrainReq( request[0], request[1] )) request = null;
+		if (request != null && sender.request( request[0], request[1] )) {
+			int[] sent = request;
+			request = null;
+			return sent;
+		}
+		return null;
 	}
 
-	int pending() {
+	synchronized int pending() {
 		return changes.size() + (request == null ? 0 : 1);
 	}
 
-	void clear() {
+	private static final String CHANGES = "changes";
+
+	@Override
+	public synchronized void storeInBundle( Bundle bundle ) {
+		int[] flat = new int[changes.size() * 4];
+		int i = 0;
+		for (int[] c : changes) {
+			System.arraycopy( c, 0, flat, i, 4 );
+			i += 4;
+		}
+		bundle.put( CHANGES, flat );
+	}
+
+	@Override
+	public synchronized void restoreFromBundle( Bundle bundle ) {
 		changes.clear();
 		request = null;
+		if (!bundle.contains( CHANGES )) return;
+		int[] flat = bundle.getIntArray( CHANGES );
+		for (int i = 0; i + 3 < flat.length; i += 4) {
+			changes.add( new int[]{ flat[i], flat[i + 1], flat[i + 2], flat[i + 3] } );
+		}
 	}
 }
