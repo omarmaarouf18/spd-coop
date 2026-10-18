@@ -27,6 +27,7 @@ import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.coop.Coop;
+import com.shatteredpixel.shatteredpixeldungeon.coop.mission.cell.CoopCell;
 import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
 import com.shatteredpixel.shatteredpixeldungeon.levels.features.LevelTransition;
 import com.watabou.utils.Bundle;
@@ -52,7 +53,8 @@ import java.util.List;
 // - Level gen sees a neutral hero (fixed class, no items/talents/trinkets/buffs).
 // - Upstream HashMap iterations and the JDK-random Collections.shuffle calls in level gen are made
 //   order-stable / seeded through the helpers below (one-line // COOP: hooks).
-// - Co-op balance (CoopBalance) and item network ids (CoopItemIds) are applied here.
+// - Co-op balance (CoopBalance), The Cell's Binding Trap (CoopCell) and item network ids
+//   (CoopItemIds) are applied here.
 //Everything is a no-op outside co-op runs: vanilla level gen is unchanged.
 public final class CoopLevelGen {
 
@@ -123,6 +125,8 @@ public final class CoopLevelGen {
 		}
 
 		CoopBalance.scaleMobs( level );
+		//The Cell's hidden Binding Trap (MEC-01): its own seeded stream, after the floor is built
+		CoopCell.placeTrap( level );
 
 		Bundle tables = result.getBundle( ITEM_IDS );
 		if (!result.contains( ITEM_IDS )) tables = new Bundle();

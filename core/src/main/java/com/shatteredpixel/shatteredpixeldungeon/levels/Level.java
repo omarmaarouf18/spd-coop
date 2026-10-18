@@ -63,6 +63,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.YogFist;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.Blacksmith;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.Sheep;
 import com.shatteredpixel.shatteredpixeldungeon.coop.links.CoopLinks;
+import com.shatteredpixel.shatteredpixeldungeon.coop.mission.cell.CoopCell;
 import com.shatteredpixel.shatteredpixeldungeon.effects.CellEmitter;
 import com.shatteredpixel.shatteredpixeldungeon.effects.TargetedCell;
 import com.shatteredpixel.shatteredpixeldungeon.effects.particles.FlowParticle;
@@ -1239,7 +1240,7 @@ public abstract class Level implements Bundlable {
 		switch (map[cell]) {
 		
 		case Terrain.SECRET_TRAP:
-			if (hard) {
+			if (hard && CoopCell.armed( traps.get( cell ) )) { // COOP: a Binding Trap that can't fire stays silent (MEC-01)
 				trap = traps.get( cell );
 				GLog.i(Messages.get(Level.class, "hidden_trap", trap.name()));
 			}
